@@ -1,0 +1,633 @@
+* Do Things - A Clojure Crash Course 
+
+but first, from the second chapter on emacs:
+
+#+BEGIN_SRC clojure
+(println "Cleanliness is next to godliness")
+#+END_SRC
+
+#+BEGIN_SRC clojure
+(defn train
+  []
+  (println "Choo choo!"))
+#+END_SRC
+
+#+BEGIN_SRC clojure
+(+ 1 (* 2 3) 4)
+
+(map (comp record first)
+     (d/q '[:find ?post
+            :in $ ?search
+            :where
+            [(fulltext $ :post/content ?search)
+             [[?post ?content]]]]
+          (db/db)
+          (:q params)))
+
+#+END_SRC
+
+Ok, on with the show: 
+
+** Syntax 
+
+#+BEGIN_SRC clojure
+(str "It was the panda" " in the library" " with a dust buster")
+#+END_SRC
+
+#+BEGIN_SRC clojure
+(if true
+  "By Zeus' Hammer!"
+  "By Aquaman's Trident!")
+#+END_SRC
+
+The do operator allows us to wrap up multiple forms in parenthesis and run them 
+
+#+BEGIN_SRC clojure
+(if true
+  (do (println "Success")
+      "By Zeus' Hammer!")
+  (do (println "Failure")
+      "By Aquaman's Trident!"))
+#+END_SRC
+
+The when operator is like a combination of if and do, but with no else branch. 
+
+#+BEGIN_SRC clojure
+(when true
+  (println "Success!")
+  "Abra Cadabra")
+#+END_SRC
+
+#+BEGIN_SRC clojure
+(nil? 1)
+
+(nil? nil)
+
+(or false nil :large_I_mean_venti :why_cant_I_just_say_large)
+
+(or (= 0 1)
+    (= "yes" "no"))
+
+(or nil)
+#+END_SRC
+
+*** Naming values with def 
+
+We use def to bind a name in clojure 
+
+#+BEGIN_SRC clojure
+(def failed-protagonist-names
+  ["Larry Potter", "Doreen the Explorer", "The Incredible Bulk"])
+#+END_SRC
+
+#+BEGIN_SRC clojure
+(defn error-message
+  [severity]
+  (str "OH GOD! IT'S A DISASTER! WE'RE "
+       (if (= severity :mild)
+         "MILDLY INCONVENIENCED"
+         "DOOMED")))
+
+(error-message :mild)
+#+END_SRC
+
+*** Data Structures 
+
+All of clojure's data structures are immutable.
+
+*** Maps 
+
+Maps are similar to dictionaries or hashes in other languages. The two kinds of maps in clojure are hash maps and sorted maps.
+
+#+BEGIN_SRC clojure
+; empty map
+{}
+
+{:first-name "Charlie"
+ :last-name "McChocoface"}
+
+{"string-key" +}
+
+{:name {:first "John"
+        :middle "Jacob"
+        :last "Jingleheimerschmidt"}}
+
+; besides using map literals, you can use the hashmap function to create a map 
+(hash-map :a 1 :b 2)
+
+; you can look up values in maps with the get function
+(get {:a 0 :b 1} :b)
+(get {:a 0 :b {:c "ho hum"}} :b)
+
+; get returns nil or a specified value if nothing is found 
+(get {:a 0 :b 1} :c)
+(get {:a 0 :b 1} :c "unicorns?")
+
+; get in lets you look up values in nested maps
+(get-in {:a 0 :b {:c "ho hum"}} [:b :c])
+
+; another way to look up a value in a map is to treat the map like a function with the key as its argument
+({:name "The Human Coffeepot"} :name)
+#+END_SRC
+
+*** Keywords 
+
+Keywords are primarily used as keys in maps 
+
+They can also be used as functions that look up the corresponding value in a data structure 
+
+#+BEGIN_SRC clojure
+; this is equivalent to the get syntax
+(:a {:a 1 :b 2 :c 3})
+
+(get {:a 1 :b 2 :c 3} :a)
+#+END_SRC
+
+*** Vectors 
+
+#+BEGIN_SRC clojure
+[3 2 1]
+
+(get [3 2 1] 0)
+
+(get ["a" {:name "Pugsley Winterbottom"} "c"] 1)
+
+; alternate syntax
+(vector "creepy" "full" "moon")
+
+(conj [1 2 3] 4)
+#+END_SRC
+
+*** Lists 
+
+#+BEGIN_SRC clojure
+'(1 2 3 4)
+
+(nth '(1 2 3 4) 3)
+
+(list 1 "two" {3 4})
+
+(conj '(1 2 3) 4)
+#+END_SRC
+
+
+*** Sets 
+
+Clojure has two kinds of sets: hash sets and sorted sets. 
+
+#+BEGIN_SRC clojure
+; literal notation for a hash set 
+#{"Kurt Vonnegut" 20 :icicle}
+
+(hash-set 1 1 2 2)
+
+(conj #{:a :b} :b)
+
+; create sets from existing vectors
+(set [3 3 3 4 4 4])
+
+; membership functions
+(contains? #{:a :b} :a)
+
+(contains? #{:a :b} 3)
+
+(contains? #{nil} nil)
+
+; getting 
+(:a #{:a :b}) 
+(get #{:a :b} :a)
+(get #{:a nil} nil)
+#+END_SRC
+
+** Functions 
+
+#+BEGIN_SRC clojure
+; higher order functions
+(map inc [0 1 2 3])
+#+END_SRC
+
+Function definitions consist of 5 parts: 
+- defn
+- function name
+- a docstring describing the function (optional)
+- parameters listed in brackets
+- function body 
+
+#+BEGIN_SRC clojure
+(defn too-enthusiastic
+  "Returns a cheer that might be a bit too enthusiastic"
+  [name]
+  (str "ummagawd " name))
+
+(too-enthusiastic "Zelda")
+#+END_SRC
+
+Clojure functions support arity overloading -- we can define a function so a different function body will run depending on the arity. 
+
+#+BEGIN_SRC clojure
+(defn multi-arity
+  ([first second third]
+   (do-things first second third))
+  ([first second]
+   (do-things first second))
+  ([first]
+   (do-things first)))
+#+END_SRC
+
+This is one way to provide default values for arguments 
+
+#+BEGIN_SRC clojure
+(defn x-chop
+  ([name chop-type]
+   (str "I " chop-type " chop " name "! Take that!"))
+  ([name]
+   (x-chop name "karate")))
+
+(x-chop "Kanye West" "slap")
+(x-chop "Kanye East")
+#+END_SRC
+
+Clojure also supports a rest parameter. 
+
+#+BEGIN_SRC clojure
+(defn codger-communication
+  [whippersnapper]
+  (str "Get off my lawn, " whippersnapper "!!!"))
+
+(defn codger
+  [& whippersnappers]
+  (map codger-communication whippersnappers))
+
+(codger "Billy" "Anne-Marie" "The Incredible Bulk")
+#+END_SRC
+
+You can mix regular parameters and rest parameters, but rest parameters must go last 
+
+#+BEGIN_SRC clojure
+(defn favorite-things
+  [name & things]
+  (str "Hi, " name ", here are my favorite things: "
+       (clojure.string/join ", " things)))
+
+(favorite-things "Doreen" "gum" "shoes" "kara-te")
+#+END_SRC
+
+** Destructuring 
+
+The basic idea behind destructuring is that it lets you concisely bind names to values within a collection. 
+
+#+BEGIN_SRC clojure
+(defn my-first
+  [[first-thing]]
+  first-thing)
+
+(my-first ["oven" "bike" "war-axe"])
+#+END_SRC
+
+The vector essentially says to clojure that the function is going to receieve a list or vector as an argument, 
+and to take the structure apart and associate meaningful names with different parts of the argument. 
+
+#+BEGIN_SRC clojure
+(defn chooser
+  [[first-choice second-choice & unimportant-choices]]
+  (println (str "Your first choice is: " first-choice))
+  (println (str "Your second choice is: " second-choice))
+  (println (str "We're ignoring the rest -- Here they are in case you need to cry over them: "
+                (clojure.string/join ", " unimportant-choices))))
+
+(chooser ["Marmalade" "Handsome Jack" "Pigpen" "Aquaman"])
+#+END_SRC
+
+We can also destructure maps
+
+#+BEGIN_SRC clojure
+(defn announce-treasure-location
+  [{lat :lat lng :lng}]
+  (println (str "Treasure lat: " lat))
+  (println (str "Treasure lng: " lng)))
+
+(announce-treasure-location {:lat 28.22 :lng 81.33})
+#+END_SRC
+
+We often want to just break keywords out of a map, so here is a shorter syntax for that.
+
+#+BEGIN_SRC clojure
+(defn announce-treasure-location
+  [{:keys [lat lng]}]
+  (println (str "Treasure lat: " lat))
+  (println (str "Treasure lng: " lng)))
+
+; you can retain access to the original map arg by using the :as keyword 
+(defn receive-treasure-location
+  [{:keys [lat lng] :as treasure-location}]
+  (println (str "Treasure lat: " lat))
+  (println (str "Treasure lng: " lng))
+  (steer-ship! treasure-location))
+#+END_SRC
+
+In general, we can think of destructuring as instructing clojure on how to associate names with values in a list, map, set, or vector. 
+
+** Lambdas 
+
+#+BEGIN_SRC clojure
+(map (fn [name] (str "Hi, " name))
+     ["Darth Vader" "Mr. Magoo"])
+
+; You can associate lambdas with a name too
+(def my-special-multiplier (fn [x] (* x 3)))
+(my-special-multiplier 12)
+
+; compact syntax
+(#(* % 3) 8)
+
+(map #(str "Hi, " %)
+     ["Darth Vader" "Mr. Magoo"])
+
+; we can pass multiple arguments with %1 %2 ...
+(#(str %1 " and " %2) "cornbread" "butter beans")
+
+; we can also pass rest parameters
+(#(identity %&) 1 "blarg" :yip)
+#+END_SRC
+
+We can also return functions 
+
+#+BEGIN_SRC clojure
+(defn inc-maker
+  "create a custom incrementor"
+  [inc-by]
+  #(+ % inc-by))
+
+(def inc3 (inc-maker 3))
+
+(inc3 7)
+#+END_SRC
+
+** Putting it all together 
+
+#+BEGIN_SRC clojure
+(def asym-hobbit-body-parts [{:name "head" :size 3}
+                             {:name "left-eye" :size 1}
+                             {:name "left-ear" :size 1}
+                             {:name "mouth" :size 1}
+                             {:name "nose" :size 1}
+                             {:name "neck" :size 2}
+                             {:name "left-shoulder" :size 3}
+                             {:name "left-upper-arm" :size 3}
+                             {:name "chest" :size 10}
+                             {:name "back" :size 10}
+                             {:name "left-forearm" :size 3}
+                             {:name "abdomen" :size 6}
+                             {:name "left-kidney" :size 1}
+                             {:name "left-hand" :size 2}
+                             {:name "left-knee" :size 2}
+                             {:name "left-thigh" :size 4}
+                             {:name "left-lower-leg" :size 3}
+                             {:name "left-achilles" :size 1}
+                             {:name "left-foot" :size 2}])
+#+END_SRC
+
+This is a vector of maps, in which each map has the name of the body part and relative size of the body part. 
+
+We are missing the right side of the hobbit
+
+#+BEGIN_SRC clojure
+(defn matching-part
+  [part]
+  {:name (clojure.string/replace (:name part) #"^left-" "right-")
+   :size (:size part)})
+
+(defn symmetrize-body-parts
+  "Expects a sequence of maps that have a :name and :size"
+  [asym-body-parts]
+  (loop [remaining-asym-parts asym-body-parts
+         final-body-parts []]
+    (if (empty? remaining-asym-parts)
+      final-body-parts
+      (let [[part & remaining] remaining-asym-parts]
+        (recur remaining
+               (into final-body-parts
+                     (set [part (matching-part part)])))))))
+#+END_SRC
+
+When we call symmetrize-body-parts on asym-hobbit-body-parts we get a fully symmetrical hobbit 
+
+#+BEGIN_SRC clojure
+(symmetrize-body-parts asym-hobbit-body-parts)
+#+END_SRC
+
+#+RESULTS:
+| :name | head            | :size |  3 |
+| :name | left-eye        | :size |  1 |
+| :name | right-eye       | :size |  1 |
+| :name | left-ear        | :size |  1 |
+| :name | right-ear       | :size |  1 |
+| :name | mouth           | :size |  1 |
+| :name | nose            | :size |  1 |
+| :name | neck            | :size |  2 |
+| :name | left-shoulder   | :size |  3 |
+| :name | right-shoulder  | :size |  3 |
+| :name | right-upper-arm | :size |  3 |
+| :name | left-upper-arm  | :size |  3 |
+| :name | chest           | :size | 10 |
+| :name | back            | :size | 10 |
+| :name | left-forearm    | :size |  3 |
+| :name | right-forearm   | :size |  3 |
+| :name | abdomen         | :size |  6 |
+| :name | left-kidney     | :size |  1 |
+| :name | right-kidney    | :size |  1 |
+| :name | left-hand       | :size |  2 |
+| :name | right-hand      | :size |  2 |
+| :name | right-knee      | :size |  2 |
+| :name | left-knee       | :size |  2 |
+| :name | right-thigh     | :size |  4 |
+| :name | left-thigh      | :size |  4 |
+| :name | right-lower-leg | :size |  3 |
+| :name | left-lower-leg  | :size |  3 |
+| :name | right-achilles  | :size |  1 |
+| :name | left-achilles   | :size |  1 |
+| :name | right-foot      | :size |  2 |
+| :name | left-foot       | :size |  2 |
+
+let binds values to names 
+
+#+BEGIN_SRC clojure
+(let [x 3] x)
+
+(def dalmation-list ["Pongo" "Perdita" "Puppy 1" "Puppy 2"])
+
+(let [dalmations (take 2 dalmation-list)]
+  dalmations)
+
+(def x 0)
+(let [x 1] x)
+(let [x (inc x)] x)
+
+(let [[pongo & dalmations] dalmation-list]
+  [pongo dalmations])
+#+END_SRC
+
+#+BEGIN_SRC clojure
+; create a new scope with part as first element and remaining as rest 
+(let [[part & remaining] remaining-asym-parts]
+  ; for the remaining elements
+  (recur remaining
+         ; place the results into a scope called final-body-parts
+         (into final-body-parts
+               ; return a set with the first element and its matching body part 
+               (set [part (matching-part part)]))))
+#+END_SRC
+
+loop provides another way to do recursion in clojure 
+
+#+BEGIN_SRC clojure
+(loop [iteration 0]
+  (println (str "Iteration " iteration))
+  (if (> iteration 3)
+    (println "Goodbye!")
+    (recur (inc iteration))))
+
+; alternatively 
+(defn recursive-printer
+  ([]
+   (recursive-printer 0))
+  ([iteration]
+   (println iteration)
+   (if (> iteration 3)
+     (println "Goodbye!")
+     (recursive-printer (inc iteration)))))
+
+(recursive-printer)
+#+END_SRC
+
+** Better Symmetrizer with reduce 
+
+The pattern of processing each element in a sequence and building a result is so common that it has a name -- reduce. 
+
+#+BEGIN_SRC clojure
+(reduce + [1 2 3 4])
+#+END_SRC
+
+We could reimplement our symmetrizer as follows: 
+
+#+BEGIN_SRC clojure
+(defn my-reduce
+  ([f initial coll]
+   (loop [result initial remaining coll]
+     (if (empty? remaining)
+       result
+       (recur (f result (first remaining))
+              (rest remaining)))))
+  ([f [head & tail]]
+   (my-reduce f head tail)))
+
+(defn better-symmetrizer-body-parts
+  "Expects a sequence of maps that have a :name and :size"
+  [asym-body-parts]
+  (reduce (fn [final-body-parts part]
+            (into final-body-parts
+                  (set [part (matching-part part)])))
+          []
+          asym-body-parts))
+#+END_SRC
+
+Determine which part of a hobbit is hit 
+
+#+BEGIN_SRC clojure
+(defn hit
+  [asym-body-parts]
+  (let [sym-parts (better-symmetrizer-body-parts asym-body-parts)
+        body-part-size-sum (reduce + (map :size sym-parts))
+        target (rand body-part-size-sum)]
+    (loop [[part & remaining] sym-parts
+           accumulated-size (:size part)]
+      (if (> accumulated-size target)
+        part
+        (recur remaining (+ accumulated-size (:size (first remaining))))))))
+
+(hit asym-hobbit-body-parts)
+#+END_SRC
+
+** Exercises 
+
+1. Use the str, vector, list, hash-map and hash-set functions 
+
+#+BEGIN_SRC clojure
+(str "Hello" " Clojure!")
+
+(vector "a" "b" "c" "d" "e")
+
+(list "a" {:a "b" :c "d"} "b" 3 4 5)
+
+(hash-map :name "Cornelius" :race "Chimpanzee")
+
+(hash-set :name "Cornelius" :race "Chimpanzee" :name "Cornelius")
+#+END_SRC
+
+2. Write a function that takes a number and adds 100 to it 
+
+#+BEGIN_SRC clojure
+(defn add-hunnit
+  [num]
+  (+ num 100))
+
+(add-hunnit 100)
+#+END_SRC
+
+3. Write a function, dec-maker, that works exactly like the function inc-maker except with subtraction 
+
+#+BEGIN_SRC clojure
+(defn inc-maker
+  [inc]
+  (fn [x] (+ x inc)))
+
+((inc-maker 10) 30)
+
+(defn dec-maker
+  [dec]
+  (fn [x] (- x dec)))
+
+((dec-maker 10) 100)
+
+((dec-maker 9) 10)
+#+END_SRC
+
+4. Write a function, mapset, that works like map except the return value is a set 
+
+#+BEGIN_SRC clojure
+(defn mapset
+  [f ls]
+  (set (map f ls)))
+
+(mapset inc [1 1 2 2])
+#+END_SRC
+
+5. Create a function that is similar to symmetrize-body-parts except that it has to work with weird space aliens with radial symmetry -- instead of 2 x, they have 5 
+
+#+BEGIN_SRC clojure
+(defn symmetrize-body-parts
+  "Expects a sequence of maps that have a :name and :size"
+  [asym-body-parts]
+  (loop [remaining-asym-parts asym-body-parts
+         final-body-parts []]
+    (if (empty? remaining-asym-parts)
+      final-body-parts
+      (let [[part & remaining] remaining-asym-parts]
+        (recur remaining
+               (into final-body-parts
+                     (set [part (matching-part part)])))))))
+
+; the idea is to take in a sequence of parts 
+; get the unique limbs 
+; then duplicate them with a number prefix, i.e. 1-arm 2-arm ... n-arm
+; we also need a function to match the parts. Lets suppose we have the first part with a 1- prefix
+(defn matching-part
+  [part-in num-times]
+  {:name (clojure.string/replace (:name part) #"^left-" "right-")
+   :size (:size part)})
+
+(defn symmetrize-body-parts-gen
+  "expects a sequence of maps that have a :name and :size"
+  [body-parts num-limbs]
+  )
+#+END_SRC
