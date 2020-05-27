@@ -1,0 +1,29 @@
+* Core Functions in Depth
+
+In this chapter we learn about Clojure's underlying concept of programming to abstractions and about the sequence and collection abstractions. We will also learn about lazy sequences. 
+
+We will also work with the functions:
+
+- map
+- reduce
+- into
+- conj
+- concat
+- some
+- filter
+- take
+- drop
+- sort
+- sort-by
+- identity
+- apply
+- partial
+- complement
+
+** Treating Lists, Vectors, Sets, and Maps as Sequences
+
+map works on generics that are iterable.
+
+#+BEGIN_SRC clojure
+
+#+END_SRC
