@@ -25,5 +25,146 @@ We will also work with the functions:
 map works on generics that are iterable.
 
 #+BEGIN_SRC clojure
+(defn titleize
+  [topic]
+  (str topic " for the Brave and True"))
 
+(map titleize ["Hamsters" "Ragnarok"])
+
+(map titleize '("Empathy" "Decorating"))
+
+(map titleize #{"Elbows" "Soap Carving"})
+
+(map #(titleize (second %)) {:uncomfortable-thing "Winking"})
+#+END_SRC
+
+** Abstraction Through Indirection 
+
+#+BEGIN_SRC clojure
+(seq '(1 2 3))
+(set [1 2 3])
+(set #{1 2 3})
+(seq {:name "Bill Compton" :occupation "Dead Mopey Guy"})
+#+END_SRC
+
+You can convert the seq back into a map by using into to stick the result into an empty map 
+
+#+BEGIN_SRC clojure
+(into {} (seq {:a 1 :b 2 :c 3}))
+#+END_SRC
+
+As long as a data structure implements the sequence abstraction, it can use the seq library which includes superstars like reduce, filter, distinct, group-by and more
+
+** Seq function examples
+
+map can take multiple vectors 
+
+#+BEGIN_SRC clojure
+(map str ["a" "b" "c"] ["A" "B" "C"])
+#+END_SRC
+
+When you pass map multiple collections, the elements of the first collection will be passed as the first argument to the function, and the second collection elements the second, and so on. 
+
+#+BEGIN_SRC clojure
+(def human-consumption [8.1 7.3 6.6 5.0])
+(def critter-consumption [0.0 0.2 0.3 1.1])
+(defn unify-diet-data
+  [human critter]
+  {:human human
+   :critter critter})
+
+(map unify-diet-data human-consumption critter-consumption)
+#+END_SRC
+
+Another thing that can be done with map is passing a collection of functions. 
+
+#+BEGIN_SRC clojure
+(def sum #(reduce + %))
+(def avg #(/ (sum %) (count %)))
+(defn stats
+  [numbers]
+  (map #(% numbers)
+       [sum count avg]))
+
+(stats [3 4 10])
+(stats [80 1 44 13 6])
+#+END_SRC
+
+Additionally, clojurists often use map to retrieve the value associated with a keyword from a collection of map data structures. Since keywords can be used as functions, 
+this can be done succinctly.
+
+#+BEGIN_SRC clojure
+(def identities
+  [{:alias "Batman" :real "Bruce Wayne"}
+   {:alias "Spider-man" :real "Peter Parker"}
+   {:alias "Santa" :real "Your mom"}
+   {:alias "Easter Bunny" :real "Your dad"}])
+
+(map :real identities)
+#+END_SRC
+
+** Reduce 
+
+We can transform a map's values, producing a new map with the same keys and values
+
+#+BEGIN_SRC clojure
+(reduce (fn [new-map [key val]]
+          (assoc new-map key (inc val)))
+        {}
+        {:max 30 :min 10})
+#+END_SRC
+
+In this example, reduce treats the argument {:max 30 :min 10} as a sequence of vectors, like ([:max 30][:min 10]). Then it starts with an empty map and builds it up using the
+first argument, an anonymous function. 
+
+The function assoc takes 3 arguments: a map, a key, and a value. It derives a new map from the map you give it by associating the given key with the given value. For example,
+(assoc {:a 1} :b 2) would return {:a 1 :b 2}
+
+#+BEGIN_SRC clojure
+(assoc {:a 1} :b 2)
+
+(assoc {:a 1} :b 2 :c 3 :d 4)
+#+END_SRC
+
+Another use for reduce is to filter out keys from a map based on their value. 
+
+#+BEGIN_SRC clojure
+(reduce (fn [new-map [key val]]
+          (if (> val 4)
+            (assoc new-map key val)
+            new-map))
+        {}
+        {:human 4.1
+         :critter 3.9})
+#+END_SRC
+
+** take, drop, take-while, and drop-while 
+
+take and drop both take two arguments: a number and a sequence. take returns the first n elements of the sequence, whereas drop returns the sequence with the first n elements removed
+
+#+BEGIN_SRC clojure
+(take 3 [1 2 3 4 5 6 7 8 9 10])
+(drop 3 [1 2 3 4 5 6 7 8 9 10])
+#+END_SRC
+
+take-while and drop-while each take a predicate function to determine when it should stop taking or dropping. 
+
+#+BEGIN_SRC clojure
+(def food-journal
+  [{:month 1 :day 1 :human 5.3 :critter 2.3}
+   {:month 1 :day 2 :human 5.1 :critter 2.0}
+   {:month 2 :day 1 :human 4.9 :critter 2.1}
+   {:month 2 :day 2 :human 5.0 :critter 2.5}
+   {:month 3 :day 1 :human 4.2 :critter 3.3}
+   {:month 3 :day 2 :human 4.0 :critter 3.8}
+   {:month 4 :day 1 :human 3.7 :critter 3.9}
+   {:month 4 :day 2 :human 3.7 :critter 3.6}])
+
+; get data before march
+(take-while #(< (:month %) 3) food-journal)
+; get data after and during march
+(drop-while #(< (:month %) 3) food-journal)
+; get data for just february and march
+(take-while #(< (:month %) 4)
+            (drop-while #(< (:month %) 2) food-journal))
 #+END_SRC
