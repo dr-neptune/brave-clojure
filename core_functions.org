@@ -168,3 +168,365 @@ take-while and drop-while each take a predicate function to determine when it sh
 (take-while #(< (:month %) 4)
             (drop-while #(< (:month %) 2) food-journal))
 #+END_SRC
+
+** filter and some 
+
+#+BEGIN_SRC clojure
+(filter #(< (:human %) 5)
+        food-journal)
+#+END_SRC
+
+some returns a boolean for some function on a seq 
+
+#+BEGIN_SRC clojure
+(some #(> (:critter %) 3)
+      food-journal)
+#+END_SRC
+
+We could also use this to return the values for which truthiness holds
+
+#+BEGIN_SRC clojure
+(some #(and (> (:critter %) 3)
+            %)
+      food-journal)
+#+END_SRC
+
+** sort and sort-by 
+
+#+BEGIN_SRC clojure
+(sort [3 1 2])
+#+END_SRC
+
+sort by allows us to apply a function to the elements of a seq and use the values it returns to determine the sort order 
+
+#+BEGIN_SRC clojure
+(reverse (sort-by count ["aaa" "c" "bb"]))
+#+END_SRC
+
+** concat 
+
+concat appends the members of two seqs together 
+
+#+BEGIN_SRC clojure
+(concat [1 2][3 4])
+#+END_SRC
+
+** Lazy Seqs 
+
+Many functions, including map and filter, return a lazy seq. A lazy seq is a seq whose members aren't computed until you try to access them. Computing the 
+seq's members is called realizing the seq. 
+
+
+** Demonstrating Lazy Seq Efficiency 
+
+#+BEGIN_SRC clojure
+(def vampire-database
+  {0 {:makes-blood-puns? false, :has-pulse? true  :name "McFishwich"}
+   1 {:makes-blood-puns? false, :has-pulse? true  :name "McMackson"}
+   2 {:makes-blood-puns? true,  :has-pulse? false :name "Damon Salvatore"}
+   3 {:makes-blood-puns? true,  :has-pulse? true  :name "Mickey Mouse"}})
+
+(defn vampire-related-details
+  [social-security-number]
+  (Thread/sleep 1000)
+  (get vampire-database social-security-number))
+
+(defn vampire?
+  [record]
+  (and (:makes-blood-puns? record)
+       (not (:has-pulse? record))
+       record))
+
+(defn identify-vampire
+  [social-security-number]
+  (first (filter vampire?
+                 (map vampire-related-details social-security-number))))
+
+(time (vampire-related-details 0))
+#+END_SRC
+
+Because map is lazy, it doesn't actually apply vampire-related-details to social security numbers until you try to access the mapped element. In fact, 
+it returns a value almost immediately. 
+
+#+BEGIN_SRC clojure
+(time (def mapped-details (map vampire-related-details (range 0 10000000))))
+#+END_SRC
+
+In the previous example, mapped-details is unrealized. Once you try to access a member of it, it will use its recipe to generate the element you've requested, 
+and you'll incur the one second per database lookup cost:
+
+#+BEGIN_SRC clojure
+(time (first mapped-details))
+#+END_SRC
+
+This took more than a second (32 seconds) because clojure chunks its lazy sequences, preemptively loading some of the next elements as well. 
+
+Once its been realized, it caches 
+
+#+BEGIN_SRC clojure
+(time (first mapped-details))
+#+END_SRC
+
+Now we can efficiently mine the vampire database to find the fanged culprit
+
+#+BEGIN_SRC clojure
+(time (identify-vampire (range 0 1000000)))
+#+END_SRC
+
+** Infinite Sequences 
+
+One useful capability that lazy seqs give us is the ability to construct infinite sequences. One easy way to create an infinite sequence is with repeat which creates
+a sequence whose every member is an argument that you pass: 
+
+#+BEGIN_SRC clojure
+(concat (take 8 (repeat "na")) ["Batman!"])
+#+END_SRC
+
+You can also use repeatedly, which will call the provided function to generate each element in the sequence. 
+
+#+BEGIN_SRC clojure
+(take 3 (repeatedly (fn [] (rand-int 10))))
+#+END_SRC
+
+A lazy seq's recipe doesn't have to specify an endpoint 
+
+#+BEGIN_SRC clojure
+(defn even-numbers
+  ([] (even-numbers 0))
+  ([n] (cons n (lazy-seq (even-numbers (+ n 2))))))
+
+(take 10 (even-numbers))
+
+(take 10 (even-numbers 10))
+#+END_SRC
+
+** The Collection Abstraction 
+
+All of clojure's core data structures -- vectors, maps, lists, and sets -- take part in both the sequences and collection abstractions
+
+The sequence abstraction is about operating on members individually, whereas the collection abstraction is about the data structure as a whole. 
+
+#+BEGIN_SRC clojure
+(empty? [])
+(empty? ["No!"])
+#+END_SRC
+
+** into 
+
+Many seq functions return a seq rather than the original data structure. You will probably want to convert the return value back into the original value, and into allows that 
+
+#+BEGIN_SRC clojure
+(into {} (map identity {:sunlight-reaction "Glitter!"}))
+(into [] (map identity [:garlic :sesame-oil :fried-eggs]))
+#+END_SRC
+
+#+BEGIN_SRC clojure
+(into #{} (map identity [:garlic-clove :garlic-clove]))
+#+END_SRC
+
+The first argument of into doesn't need to be empty. We can use into to add elements to a map
+
+#+BEGIN_SRC clojure
+(into {:favorite-emotion "gloomy"}
+      [[:sunlight-reaction "Glitter!"]])
+
+(into ["cherry"] '("pine" "spruce"))
+#+END_SRC
+
+into is great at taking two collections and adding all the elements from the second to the first
+
+** conj 
+
+conj also adds elements to a collection, but does it in a slightly different way 
+
+#+BEGIN_SRC clojure
+(conj [0] [1])
+(into [0] [1])
+(conj [0] 1)
+
+(conj [0] 1 2 3 4 5)
+(conj {:time "midnight"}
+      [:place "ye olde cemetarium"])
+#+END_SRC
+
+conj and into are so similar that you can even define conj in terms of into 
+
+#+BEGIN_SRC clojure
+(defn my-conj
+  [target & additions]
+  (into target additions))
+#+END_SRC
+
+You'll often see two functions that do the same thing, except one takes a rest parameter (conj) and the other takes a seq-able data structure (into)
+
+
+** Function Functions 
+
+These are higher order functions
+
+** apply 
+
+apply explodes a seqable data structure so that it can be passed to a function that expects a rest parameter. 
+
+#+BEGIN_SRC clojure
+(max 0 1 2)
+(max [0 1 2])
+(apply max [0 1 2])
+#+END_SRC
+
+kind of like flatten 
+
+We can also define conj and into by using apply 
+
+#+BEGIN_SRC clojure
+(defn my-into
+  [target additions]
+  (apply conj target additions))
+
+(my-into [0] [1 2 3])
+#+END_SRC
+
+** partial 
+
+partial takes a function, and any number of arguments. It then returns a new function. When you call the returned function, it calls the original function with the original arguments supplied along
+with new arguments 
+
+#+BEGIN_SRC clojure
+(def add10 (partial + 10))
+
+(add10 3)
+(add10 5)
+
+(def add-missing-elements
+  (partial conj ["water" "earth" "air"]))
+
+(add-missing-elements "unobtainium" "adamantium")
+
+(defn my-partial
+  [partialized-fn & args]
+  (fn [& more-args]
+    (apply partialized-fn (into args more-args))))
+
+(def add20 (my-partial + 20))
+(add20 3)
+#+END_SRC
+
+In general, you want to use partials when you find you're repeating the same combination of function and arguments in many different contexts 
+
+#+BEGIN_SRC clojure
+(defn lousy-logger
+  [log-level message]
+  (condp = log-level
+    :warn (clojure.string/lower-case message)
+    :emergency (clojure.string/upper-case message)))
+
+(def warn (partial lousy-logger :warn))
+(def emerg (partial lousy-logger :emergency))
+
+(warn "Red light ahead")
+(emerg "ye olde red light ahead")
+#+END_SRC
+
+** complement 
+
+#+BEGIN_SRC clojure
+(defn identify-humans
+  [social-security-numbers]
+  (filter #(not (vampire? %))
+          (map vampire-related-details
+               social-security-numbers)))
+
+(def not-vampire? (complement vampire?))
+(defn identify-humans
+  [social-security-numbers]
+  (filter not-vampire?
+          (map vampire-related-details
+               social-security-numbers)))
+
+(defn my-complement
+  [fun]
+  (fn [& args]
+    (not (apply fun args))))
+
+(def my-pos? (complement neg?))
+(my-pos? 1)
+(my-pos? -1)
+#+END_SRC
+
+** A Vampire Data Analysis Program for the FWPD 
+
+#+BEGIN_SRC clojure
+(def filename (slurp "suspects.csv"))
+(str filename)
+#+END_SRC
+
+#+BEGIN_SRC clojure
+(def vamp-keys [:name :glitter-index])
+
+(defn str->int
+  [str]
+  (Integer. str))
+
+(def conversions
+  {:name identity
+   :glitter-index str->int})
+
+(defn convert
+  [vamp-key value]
+  ((get conversions vamp-key) value))
+
+(convert :glitter-index "3")
+
+(defn parse
+  "Convert a CSV into rows of columns"
+  [string]
+  (map #(clojure.string/split % #",")
+       (clojure.string/split string #"\n")))
+
+(parse filename)
+
+; take a seq of vectors and combine with vamp keys 
+(defn mapify
+  "return a seq of maps like {:name ... :glitter-index ...}"
+  [rows]
+  (map (fn [unmapped-row]
+         (reduce (fn [row-map [vamp-key value]]
+                   (assoc row-map vamp-key (convert vamp-key value)))
+                 {}
+                 (map vector vamp-keys unmapped-row)))
+       rows))
+
+(first (mapify (parse filename)))
+
+(defn glitter-filter
+  [minimum-glitter records]
+  (filter #(>= (:glitter-index %) minimum-glitter)
+          records))
+
+(glitter-filter 3 (mapify (parse filename)))
+#+END_SRC
+
+** Exercises 
+
+1. Turn the result of your glitter filter into a list of names 
+
+#+BEGIN_SRC clojure
+(map :name (glitter-filter 3 (mapify (parse filename))))
+#+END_SRC
+
+2. Write a function, append, which will append a new suspect to your list of suspects 
+
+#+BEGIN_SRC clojure
+(defn append
+  [suspects & new-sus]
+  (into suspects new-sus))
+
+(append '("a" "b" "c") "d" "e" "f")
+
+(glitter-filter 3 (mapify (parse filename)))
+
+(append (glitter-filter 3 (mapify (parse filename))) {:name "Frobenius" :glitter-index 11})
+#+END_SRC
+
+3. Write a function, validate, which will check that :name and :glitter-index are present when you append. The validate function should accept two arguments:
+a map of keywords to validating functions, similar 
