@@ -529,4 +529,28 @@ In general, you want to use partials when you find you're repeating the same com
 #+END_SRC
 
 3. Write a function, validate, which will check that :name and :glitter-index are present when you append. The validate function should accept two arguments:
-a map of keywords to validating functions, similar 
+a map of keywords to validating functions, similar to conversions, and the record to be validated.
+
+#+BEGIN_SRC clojure
+(def conversions
+  {:name identity
+   :glitter-index str->int})
+
+(defn validate
+  [])
+#+END_SRC
+
+4. Write a function that will take your list of maps and convert it back to a CSV string 
+
+#+BEGIN_SRC clojure
+(def glit-3 (append (glitter-filter 3 (mapify (parse filename))) {:name "Frobenius" :glitter-index 11}))
+
+(defn back-to-csv
+  [hmap]
+  (clojure.string/join "," (interleave (map :name glit-3)
+                                       (map str (map :glitter-index glit-3)
+                                            (repeat 4 "\n")))))
+
+(back-to-csv glit-3)
+#+END_SRC
+
