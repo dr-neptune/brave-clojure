@@ -1,0 +1,93 @@
+* FUNctional Programming 
+
+** Pure Functions are Referentially Transparent 
+ 
+#+BEGIN_SRC clojure
+; pure 
+(+ 1 2)
+
+(defn wisdom
+  [words]
+  (str words ", Daniel-san"))
+
+(wisdom "Always bathe on Fridays")
+
+; not pure
+(defn year-end-evaluation
+  []
+  (if (> (rand) 0.5)
+    "You get a raise!"
+    "Better luck next year!"))
+
+(year-end-evaluation)
+
+; file io is not pure 
+(defn analyze-file
+  [filename]
+  (defn analysis
+    [text]
+    (str "Character count: " (count text)))
+  (analysis (slurp filename)))
+#+END_SRC
+
+** Living with Immutable Data Structures 
+
+#+BEGIN_SRC clojure
+(defn sum
+  ([vals] (sum vals 0))
+  ([vals accumulating-total]
+   (if (empty? vals)
+     accumulating-total
+     (sum (rest vals)
+          (+ (first vals) accumulating-total)))))
+
+(sum [1 2 3 4 5] 10)
+#+END_SRC
+
+This function takes 2 arguments, a collection to process (vals) and an accumulator. It uses arity overloading to provide a reasonable default for the accumulator if you do not pass one. 
+
+#+BEGIN_SRC clojure
+(defn sum
+  ([vals] (sum vals 0))
+  ([vals accumulating-total]
+   (if (empty? vals)
+     accumulating-total
+     (recur (rest vals)
+            (+ (first vals) accumulating-total)))))
+#+END_SRC
+
+#+BEGIN_SRC clojure
+(require '[clojure.string :as s])
+
+(defn clean
+  [text]
+  (s/replace (s/trim text) #"lol" "LOL"))
+
+(clean "  My boa constrictor is so sassy lol!  ")
+#+END_SRC
+
+** Cool Things to do with Pure Functions 
+
+*** comp 
+
+comp allows us to compose a sequence of functions. The first function can take any number of arguments, the rest can only take one. 
+
+#+BEGIN_SRC clojure
+((comp inc *) 2 3)
+
+(def character
+  {:name "Smooches McCutes"
+   :attributes {:intelligence 10
+                :strength 4
+                :dexterity 5}})
+
+(def c-int (comp :intelligence :attributes))
+(def c-str (comp :strength :attributes))
+(def c-dex (comp :dexterity :attributes))
+
+(c-int character)
+(c-str character)
+(c-dex character)
+#+END_SRC
+
+
