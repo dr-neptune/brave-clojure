@@ -1,2 +1,5 @@
 * Organizing Your Project: A Librarian's Tale
 
+Within each of us lives a librarian names Melvil, a fantastical creature who delights in the organizational arts. Day and night, Melvil yearns to bring order to your codebase. Fortunately, Clojure provides a suite of tools designed specifically to aid this homonculus in its constant struggle against the forces of chaos. 
+
+
