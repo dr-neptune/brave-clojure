@@ -2,4 +2,120 @@
 
 Within each of us lives a librarian names Melvil, a fantastical creature who delights in the organizational arts. Day and night, Melvil yearns to bring order to your codebase. Fortunately, Clojure provides a suite of tools designed specifically to aid this homonculus in its constant struggle against the forces of chaos. 
 
+#+BEGIN_SRC clojure
+(+ 1 2)
+#+END_SRC
 
+** Your Project as a Library
+
+Clojure must maintain the assocations between our identifiers and shelf addresses. It does this by using namespaces. Namespaces contain maps between human-friendly symbols and references to shelf addresses, known as vars, much like a card catalog. 
+
+#+BEGIN_SRC clojure
+(ns-name *ns*)
+#+END_SRC
+
+#+BEGIN_SRC clojure
+;; what happens when you quote a form
+;; closure
+inc
+
+;; literal
+'inc
+
+;; 
+(map inc [1 2])
+
+;; expression
+'(map inc [1 2])
+#+END_SRC
+
+** Storing Objects with def
+
+#+BEGIN_SRC clojure
+(def great-books ["East of Eden" "The Glass Bead Game"])
+
+great-books
+#+END_SRC
+
+#+RESULTS:
+: #'cnoob.core/great-books["East of Eden" "The Glass Bead Game"]
+
+We can interact with a namespace's map of symbols-to-interned-vars using ns-interns.
+
+#+BEGIN_SRC clojure
+;; here is how we'd get a map of interned vars
+(ns-interns *ns*)
+
+;; we can use the get function to get a specific var
+(get (ns-interns *ns*) 'great-books)
+#+END_SRC
+
+#'proj/great-books is the reader form of a var. We can use #' to grab hold of the var corresponding to the symbol that follows
+
+#+BEGIN_SRC clojure
+(deref #'great-books)
+#+END_SRC
+
+** Creating and Switching to Namespaces
+
+Clojure allows you to create as many namespaces as you like to avoid namespace collisions. 
+
+Clojure has 3 tools for creating namespaces:
+- The function create-ns 
+- The function in-ns
+- The macro ns
+
+create-ns takes a symbol, creates a namespace with that name if it doesn't exist already, and returns the namespace: 
+
+#+BEGIN_SRC clojure
+(create-ns 'cashew.taxonomy)
+
+;; you can use the returned ns as an arg to a function call
+(ns-name (create-ns 'cashew.taxonomy))
+#+END_SRC
+
+In practice, we will almost never use create-ns in code because it's not very useful to create a namespace and not move into it. 
+
+in-ns creates a namespace if it doesn't exist and then switches to it
+
+#+BEGIN_SRC clojure
+(in-ns 'cashew.analysis)
+#+END_SRC
+
+What if we want to use functions and data from other namespaces? To do that, we can use a filly qualified symbol. The general form is namespace / name 
+
+#+BEGIN_SRC clojure
+(in-ns 'cashew.taxonomy)
+
+(def cheddars ["mild" "medium" "strong" "sharp" "extra sharp"])
+
+(in-ns 'cashew.analysis)
+
+cashew.taxonomy/cheddars
+#+END_SRC
+
+** refer 
+
+#+BEGIN_SRC clojure
+(in-ns 'cashew-taxonomy)
+
+(def cheddars ["mild" "medium" "strong" "sharp" "extra sharp"])
+(def bries ["Wisconsin" "Somerset" "Brie de Meaux" "Brie de Melun"])
+
+(clojure.core/refer 'cashew.taxonomy)
+bries
+#+END_SRC
+
+#+BEGIN_SRC clojure
+(clojure.core/get (clojure.core/ns.map clojure.core/*ns*) 'bries)
+#+END_SRC
+
+#+BEGIN_SRC clojure
+(clojure.core/zipmap [:a :b :c] (repeat 0))
+
+(clojure.core/defn map-defaults
+  [default keys]
+  (clojure.core/zipmap keys (clojure.core/repeat default)))
+
+(map-defaults 0 [:a :b :c])
+#+END_SRC
