@@ -2,10 +2,6 @@
 
 Within each of us lives a librarian names Melvil, a fantastical creature who delights in the organizational arts. Day and night, Melvil yearns to bring order to your codebase. Fortunately, Clojure provides a suite of tools designed specifically to aid this homonculus in its constant struggle against the forces of chaos. 
 
-#+BEGIN_SRC clojure
-(+ 1 2)
-#+END_SRC
-
 ** Your Project as a Library
 
 Clojure must maintain the assocations between our identifiers and shelf addresses. It does this by using namespaces. Namespaces contain maps between human-friendly symbols and references to shelf addresses, known as vars, much like a card catalog. 
@@ -96,26 +92,92 @@ cashew.taxonomy/cheddars
 
 ** refer 
 
+refer gives you fine-grained control over how you refer to objects in other namespaces.
+
 #+BEGIN_SRC clojure
-(in-ns 'cashew-taxonomy)
+(in-ns 'cheese.taxonomy)
 
 (def cheddars ["mild" "medium" "strong" "sharp" "extra sharp"])
 (def bries ["Wisconsin" "Somerset" "Brie de Meaux" "Brie de Melun"])
 
-(clojure.core/refer 'cashew.taxonomy)
-bries
+;; create a new namespace
+(in-ns 'cheese.analysis)
+;; let me refer to the other namespace without using full symbols
+(clojure.core/refer 'cheese.taxonomy)
+
+;; there are also versions that allow subsets
+(clojure.core/refer 'cheese.taxonomy :only ['bries])
+(clojure.core/refer 'cheese.taxonomy :exclude ['bries])
+(clojure.core/refer 'cheese.taxonomy :rename {'bries 'no-thanks})
 #+END_SRC
+
+From now on, when the book referenced "refer", it will have expected the function (clojure.core/refer-clojure) to have been evaluated in the repl
+
+Sometimes you want a function to be available only to other functions within the same namespace. Clojure allows you to define private functions using defn-
 
 #+BEGIN_SRC clojure
-(clojure.core/get (clojure.core/ns.map clojure.core/*ns*) 'bries)
+(clojure.core/defn- private-function
+  "Just an example function that does nothing"
+  [])
 #+END_SRC
+
+** alias
+
+alias lets us shorten a namespace name for using fully qualified symbols 
 
 #+BEGIN_SRC clojure
-(clojure.core/zipmap [:a :b :c] (repeat 0))
-
-(clojure.core/defn map-defaults
-  [default keys]
-  (clojure.core/zipmap keys (clojure.core/repeat default)))
-
-(map-defaults 0 [:a :b :c])
+(clojure.core/alias 'taxon 'cheese.taxonomy)
 #+END_SRC
+
+** Real Project Organization
+
+see the-divine-cheese-code
+
+** The ns Macro
+
+The tools covered so far:
+- in-ns
+- refer
+- alias
+- require
+- use
+
+are most often used when playing in the REPL. In our source code files, we'll typically use the ns macro.
+
+You can control what gets referred from clojure-code with :refer-clojure, which takes the same options as refer:
+
+#+BEGIN_SRC clojure
+(ns the-divine-cheese-code.core
+  (:refer-clojure :exclude [println]))
+
+;; the preceding code is equivalent to
+(in-ns 'the-divine-cheese-code.core)
+(refer 'clojure.core :exclude ['println])
+
+;; :require works a lot like the require function
+(ns the-divine-cheese-code.core
+  (:require [the-divine-cheese-code.visualization.svg :as svg]))
+
+;; the preceding code is equivalent to
+(in-ns 'the-divine-cheese-code.core)
+(require '[the-divine-cheese-code.visualization.svg :as svg])
+
+;; you can require multiple libraries in a require
+(ns the-divine-cheese-code.core
+  (:require [the-divine-cheese-code.visualization.svg :as svg]
+            [clojure.java.browse :as browse]))
+
+;; we can also refer names
+(ns the-divine-cheese-code.core
+  (:require [the-divine-cheese-code.visualization.svg :refer [points]]
+            [clojure.java.browse :as browse]))
+
+;; we can also refer all the symbols
+(ns the-divine-cheese-code.core
+  (:require [the-divine-cheese-code.visualization.svg :refer :all]
+            [clojure.java.browse :as browse]))
+#+END_SRC
+
+The preferred way to require code is to: 
+- alias namespaces
+- refer symbols
