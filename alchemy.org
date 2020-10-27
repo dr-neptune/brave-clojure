@@ -1,0 +1,348 @@
+* Clojure Alchemy: Reading, Evaluation, and Macros
+
+Macros allow you to transform arbitrary expressions into valid Clojure, so you can extend the language itself to fit your needs. 
+
+#+BEGIN_SRC clojure
+(defmacro backwards
+  [form]
+  (reverse form))
+
+(backwards (" backwards" " am" "I" str))
+#+END_SRC
+
+This chapter explains the elements of Clojure's evaluation model: the reader, the evaluator, and the macro expander.
+
+** An Overview of Clojure's Evaluation Model
+
+Clojure has an evaluation model that differs from most other languages: it has a 2 phase system where it reads textual source code, producing Clojure data structures. These data structures are then evaluated: Clojure traverses the data structures and performs actions like function application or var lookup based on the type of the data structure. 
+
+Languages that have this relationship between source code, data, and evaluation are called homoiconic.
+
+The evaluator doesn't actually care where the input comes from -- it doesn't have to come from the reader. As a result, you can send your program's data structures directly to the Clojure evaluator with `eval`: 
+
+#+BEGIN_SRC clojure
+(def addition-list (list + 1 2))
+(eval addition-list)
+#+END_SRC
+
+The data structures of your running program and those of the evaluator live in the same space, and the upshot is that you can use the full power of Clojure and all the code you've written to construct data structures for evaluation: 
+
+#+BEGIN_SRC clojure
+;; add 10 to the addition list and evaluate it
+(eval (concat addition-list [10]))
+
+;; create definition
+(eval
+ (list 'def 'lucky-number
+       (concat addition-list [10])))
+#+END_SRC
+
+Your program can talk directly to its own evaluator, using its own functions and data to modify itself as it runs. Because the code you write represents data structures that you're used to manipulating and the evaluator consumes those data structures, it's easy to reason about how to programmatically modify your program. Macros are what allow you to perform those manipulations easily.
+
+** The Reader
+
+The reader converts the textual source code you save in a file or enter in the REPL into Clojure data structures. It's like a translator between the human world of Unicode characters and Clojure's world of lists, vectors, maps, symbols, and other data structures. 
+
+*** Reading
+
+Reading and evaluation are discrete processes that you can perform independently. 
+
+#+BEGIN_SRC clojure
+;; read-string takes a string as an argument and processes it using Clojure's reader, returning a data structure
+(read-string "(+ 1 2)")
+
+(list? (read-string "(+ 1 2)"))
+
+(conj (read-string "(+ 1 2)") :zagglewag)
+
+(read-string "{:sound \"hoot\"}")
+
+;; make a lambda function
+(read-string "#(+ 1 %)")
+#+END_SRC
+
+*** Reader Macros
+
+In the lambda expression read-string above, we converted the string "#(+ 1 %)" into a function like (fn* [p1__7789#] (+ 1 p1__7789#))
+
+The reader used a *reader macro* to transform our statement into a proper lambda function. Reader macros are sets of rules for transforming text into data structures. They often allow you to represent data structures in more compact ways because they take an abbreviated reader form and expand it into a full form. They're designated by macro characters like `'`, `#`, and `@`. They are also different from the macros we will see later, so these will always be referred to as reader macros. 
+
+#+BEGIN_SRC clojure
+(read-string "'(a b c)")
+(read-string "@var")
+(read-string "; ignore!\n(+ 1 2)")
+#+END_SRC
+
+** The Evaluator
+
+You can think of Clojure's evaluator as a function that takes a data structure as an argument, processes the data structure using rules corresponding to the data structure's type, and returns a result. 
+
+*** These things evaluate to themselves
+
+Whenever Clojure evaluates data structures that aren't a list or symbol, the result is the data structure itself: 
+
+#+BEGIN_SRC clojure
+true
+false
+{}
+:huzzah
+()
+#+END_SRC
+
+*** Symbols
+
+Ultimately, a symbols resolves to either a value or a special form - a built-in Clojure operator that provides fundamental behavior.
+
+In general, Clojure resolves a symbol by:
+
+1. Looking up whether the symbol has a special form. If it doesn't...
+2. Looking up whether the symbol corresponds to a local binding. If it doesn't...
+3. Trying to find a namespace mapping introduced by def. If it doesn't...
+4. Throwing an exception
+
+#+BEGIN_SRC clojure
+;; special form
+(if true :a :b)
+
+;; local bindings
+(let [x 5]
+  (+ x 3))
+
+(def x 15)
+(+ x 3)
+
+;; nesting bindings
+(let [x 5]
+  (let [x 6]
+    (+ x 3)))
+
+;; functions also create local bindings, binding params to args within the fn body
+(defn exclaim
+  [exclamation] 
+  (str exclamation "!"))
+
+(exclaim "Hadouken")
+
+(map inc [1 2 3])
+
+(read-string "+")
+(type (read-string "+"))
+(eval (list (read-string "+") 1 2))
+#+END_SRC
+
+*** Lists 
+
+If the data structure is an empty list, it evals to an empty list. Otherwise, it is evaluated as a call to the first element in the list. The way the call is performed depends on the nature of that first element.
+
+** Macros 
+
+With macros, we can use Clojure to manipulate the data structures that Clojure evaluates. 
+
+#+BEGIN_SRC clojure
+;; example, infix operators
+(read-string "(1 + 1)")
+
+;; rearrange returned list to make output eval-able
+(eval (let [infix (read-string "(1 + 1)")]
+        (list (second infix)
+              (first infix)
+              (last infix))))
+#+END_SRC
+
+Macros give you a convenient way to manipulate lists before Clojure evaluates them. They are just like functions, but they are executed in between the reader and the evaluator.
+
+#+BEGIN_SRC clojure
+(defmacro ignore-last-operand
+  [function-call]
+  (butlast function-call))
+
+(ignore-last-operand (+ 1 2 10))
+
+;; this will not print anything
+(ignore-last-operand (+ 1 2 (println "Look at me!!!")))
+#+END_SRC
+
+Another difference is that the data structure returned by a function is not evaluated, but the data structure returned by a macro is. The process of determining what the return value of a macro is is called macro expansion. We can use the function macroexpand to see what data structure a macro returns before that data structure is evaluated. 
+
+#+BEGIN_SRC clojure
+;; note you must quote the form that you pass to macroexpand
+(macroexpand '(ignore-last-operand (+ 1 2 10)))
+(macroexpand '(ignore-last-operand (+ 1 2 (println "Look at me!!!"))))
+#+END_SRC
+
+#+BEGIN_SRC clojure
+;; here is a macro for doing simple infix notation
+(defmacro infix
+  [infixed]
+  (list (second infixed)
+        (first infixed)
+        (last infixed)))
+
+
+
+(infix (1 + 2))
+#+END_SRC
+
+Macros enable syntactic abstraction. This means that you can use Clojure to extend itself so you can write programs however you please.
+
+** Syntactic Abstraction and the -> Macro
+
+#+BEGIN_SRC clojure
+;; original
+(defn read-resource
+  "Read a resource into a string"
+  [path]
+  (read-string (slurp (clojure.java.io/resource path))))
+
+;; threading macro
+((defn read-resource
+  [path]
+  (-> path
+      clojure.java.io/resource
+      slurp
+      read-string)))
+#+END_SRC
+1
+** Summary
+
+This chapter was about Clojure's evaluation process. 
+
+1. First the reader transforms text into Clojure data structures. 
+2. Next, the macro expander transforms those data strutures with macros, converting custom syntax into syntactically valid data structures. 
+3. Finally, those data structures get sent to the evaluator. The evaluator processes data structures based on their type. 
+   - symbols are resolved to their referents
+   - lists result in function, macro, or special form calls
+   - everything else evaluates to itself
+
+This allows us to use Clojure to expand its own syntax. This is made easier because Clojure is homoiconic: its text represents data structures, and those data structures represent abstract syntax trees, allowing you to more easily reason about how to construct syntax-expanding macros. 
+
+** Exercises
+
+1. Use the list function, quoting, and read-string to create a list that, when evaluated, prints your first name and your favorite sci-fi movie
+
+#+BEGIN_SRC clojure
+(eval (read-string "(list (str \"Michael Rose, \" \"Blade Runner\"))"))
+#+END_SRC
+
+2. Create an infix function that takes a list like (1 + 3 * 4 - 5) and transforms it into the lists that Clojure needs in order to correctly evaluate the expression using operator precedence rules.
+
+#+BEGIN_SRC clojure
+;; take in list
+;; if * found, add to front of list and then append digit before it
+;; if + found, append ( to list, then append digit before it, then )
+;; if - found, append ( to list, then append digit before it, then )
+(defn infix-f
+  [list-in]
+  (let [arrange (fn [op]
+                  ])
+    (cond )))
+
+(infix (1 + 3 - 2))
+
+(def ls-out (list 1 + 3 * 4 - 5))
+
+(if (number? (first ls-out))
+  (if (not (number? (second ls-out)))
+    (list (second ls-out) (first ls-out))
+    (list (first ls-out) (second ls-out))))
+
+(defn num-rearrange
+  [pair]
+  (list (second pair)
+        (first pair)))
+
+;; lets assume there is always an operator between each number
+(map )
+
+(eval (num-rearrange (take 4 (list 1 + 2 + 3 + 4))))
+
+(num-rearrange (take 4 (doall (list 1 + 2))))
+
+(num-rearrange (take 2 (list 1 + 2 3 4 5)))
+
+(sort-b)
+
+
+(def head-and-tail
+  (juxt first last))
+
+(def pairs-out
+  (map reverse (partition-all 2 ls-out)))
+
+(def order-ops
+  [* + -])
+
+(order-ops (list + - *))
+
+(map order-ops pairs-out)
+
+(sort-by order-ops (map reverse (partition-all 2 ls-out)))
+
+(juxt first last (list (list + 1)(list * 2)))
+
+(map reverse (partition-all 2 ls-out))
+
+(flatten (list (num-rearrange (list 1 -)) 1))
+
+(if (number? 1) true false)
+
+(defn compare-ops
+  [x y]
+  (compare (quote x) (quote y)))
+
+(compare-ops)
+
+(sort-by :value compare-ops (take 3 (map first (map reverse (partition-all 2 ls-out)))))
+
+(defmacro infix
+  [infixed]
+  (list (second infixed)
+        (first infixed)
+        (last infixed)))
+
+(reduce infix)
+
+(infix ls-out)
+
+(defn convert-op-to-val
+  [op]
+  (case op
+    * 4
+    / 3
+    + 2
+    - 1
+    0))
+
+(convert-op-to-val '*)
+
+(map convert-op-to-val '[* / + -])
+
+(map convert-op-to-val (map first pairs-out))
+
+;; take ((a b) (c d) (e f)) and return ((a b (c d (e f))))
+(def ex-ls
+  (list (list 'a 'b)
+        (list 'c 'd)
+        (list 'e 'f)))
+
+(concat (first ex-ls) (list (second ex-ls)))
+
+(defn nest-it
+  [pair]
+  (concat (first pair)
+          (list (second pair))))
+
+(defn nest-it
+  [seqn]
+  (if (nil? (next seqn))
+    seqn
+    (cons (first seqn)
+          (nest-it (rest seqn)))))
+
+(nest-it ex-ls)
+
+(map nest-it ex-ls)
+
+;; i have ordering. Now I need to nest them all, and eval
+(conj (reverse (sort-by (comp convert-op-to-val first) (map reverse (partition-all 2 (read-string "(1 + 2 * 3 - 4)"))))))
+#+END_SRC
