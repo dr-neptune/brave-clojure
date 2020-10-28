@@ -323,14 +323,16 @@ This allows us to use Clojure to expand its own syntax. This is made easier beca
 (def ex-ls
   (list (list 'a 'b)
         (list 'c 'd)
-        (list 'e 'f)))
+        (list 'e)))
 
 (concat (first ex-ls) (list (second ex-ls)))
 
 (defn nest-it
   [pair]
-  (concat (first pair)
-          (list (second pair))))
+  (if (nil? (next pair))
+    (first pair)
+    (concat (first pair)
+            (list (nest-it (rest pair))))))
 
 (defn nest-it
   [seqn]
@@ -341,8 +343,87 @@ This allows us to use Clojure to expand its own syntax. This is made easier beca
 
 (nest-it ex-ls)
 
+(reduce nest-it ex-ls)
+
 (map nest-it ex-ls)
 
 ;; i have ordering. Now I need to nest them all, and eval
-(conj (reverse (sort-by (comp convert-op-to-val first) (map reverse (partition-all 2 (read-string "(1 + 2 * 3 - 4)"))))))
+(nest-it
+  (sort-by
+   (comp convert-op-to-val first)
+   (map reverse
+        (partition-all 2
+                       (read-string "(1 + 3 * 4 - 5)")))))
+
+(partition-all 2 (read-string "(1 + 3 * 4 - 5)"))
+
+(partition-all 1 (read-string "(1 + 3 * 4 - 5)"))
+
+(def ex-str (read-string "(1 + 3 * 4 - 5)"))
+
+;; get highest precedent
+;; take left and right and move to end
+;; take next highest precedent
+;; move to front, flip op and num
+;; take next n precedents and do the same
+;; if none left, return nested list
+(defn find-precedence
+  [ls]
+  (filter symbol? (reverse (sort-by convert-op-to-val ls))))
+
+(find-precedence ex-str)
+;; * + - 
+
+(defn get-highest-precedence
+  [ls]
+  (if (= (second ls)
+         (first (find-precedence ls)))
+    (list (second ls)
+          (first ls)
+          (second (rest ls)))
+    (get-highest-precedence (rest ls))))
+
+(defn remove-substring
+  [str substr]
+  (clojure.string/replace str substr nil))
+
+(remove-substring ex-str (get-highest-precedence ex-str))
+
+(remove-substring ex-str (let [prec (get-highest-precedence ex-str)]
+                           (list (second prec)
+                                 (first prec)
+                                 (last prec))))
+
+(defn repl-all [x y]
+  (reduce #(clojure.string/replace %1 %2 "") (string x) y))
+
+(string? ex-str)
+
+;; ()
+;; (1 + 3 * 4 - 5)
+;; (1 + - 5)
+
+;; is find-precedence is nil, return
+;; once the highest is gotten, pop off those three from find-precedence
+;; if first is number, add second and first
+;; if 
+
+(defn get-rest-precedence
+  [ls ord]
+  (if (= (or (first ls)
+             (second ls))
+         (first ord))
+    (if (number? (second ls))
+      (list (first ls)
+            (second ls))
+      (list (first ls)
+            (second ls)))))
+
+(get-highest-precedence ex-str)
+(get-rest-precedence ex-str (find-precedence ex-str))
+
+(find-precedence ex-str)
 #+END_SRC
+
+idk, another day. I think the point is that this is hard, and will be much easier with macros
+

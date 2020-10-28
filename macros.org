@@ -1,0 +1,55 @@
+* Writing Macros
+
+In this chapter, we examine how to write macros. We will use tools like quote, syntax quote, unquote, unquote splicing, and gensym. We will also learn about dangers like double evaluation, variable capture, and macro infection.
+
+** Macros are Essential
+
+A lot of functions that would seem like special forms are actually macro expansions: 
+
+#+BEGIN_SRC clojure
+;; (when boolean-expression
+;;   expression1
+;;   expression2
+;;   ...
+;;   expression-n)
+
+(macroexpand '(when boolean-expression
+                expression1
+                expression2
+                expression3))
+#+END_SRC
+
+** Anatomy of a Macro
+
+The body of a macro will almost always return a list. This makes sense because macros are a way of transforming a data structure into a form Clojure can evaluate, and Clojure uses lists to represent function calls, special form calls, and macro calls.
+
+As an example
+
+#+BEGIN_SRC clojure
+(defmacro infix
+  "Use this macro when you pine for the notation of your childhood"
+  [infixed]
+  (list (second infixed)
+        (first infixed)
+        (last infixed)))
+
+(infix (1 + 1))
+#+END_SRC
+
+One key difference between functions and macros is that function arguments are fully evaluated before they're passed to the function, whereas macros receive arguments as unevaluated data.
+
+#+BEGIN_SRC clojure
+;; you can alsu use argument destructuring in macro definitions, just like you can with functions
+(defmacro infix-2
+  [[operand1 op operand2]]
+  (list op operand1 operand2))
+
+(infix-2 (1 + 1))
+#+END_SRC
+
+You can also create multiple-arity macros. In fact, the fundamental boolean ops and and or are defined as macros.
+
+#+BEGIN_SRC clojure
+(defmacro and-2
+  )
+#+END_SRC
