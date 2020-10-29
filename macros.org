@@ -51,5 +51,294 @@ You can also create multiple-arity macros. In fact, the fundamental boolean ops 
 
 #+BEGIN_SRC clojure
 (defmacro and-2
-  )
+  {:added "1.0"}
+  ([] true)
+  ([x] x)
+  ([x & next]
+   `(let [and# ~x]
+      (if and# (and ~@next) and#))))
 #+END_SRC
+
+** Building Lists for Evaluation
+
+Macro writing is all about building a list for Clojure to evaluate, and it requires a kind of inversion to your normal way of thinking. You will have to be extra careful about the difference between a symbol and its value.
+
+*** Distinguishing Symbols and Values
+
+#+BEGIN_SRC clojure
+(defmacro my-print-whoopsie
+  [expression]
+  (list let [result expression]
+        (list println result)
+        result))
+
+(defmacro my-print
+  [expression]
+  (list 'let ['result expression]
+        (list 'println 'result)
+        'result))
+
+(my-print "Hello")
+#+END_SRC
+
+In the first attempt, we get an error because the body tries to get the value that the symbol let refers to, whereas what we actually want to do is return the let symbol itself. 
+
+In the corrected version, we are quoting each symbol by prefixing them with '. This tells Clojure to turn off evaluation for whatever follows, in this case preventing it from trying to resolve the symbols and instead just returning symbols.
+
+
+*** Simple Quoting
+
+#+BEGIN_SRC clojure
+;; no quoting
+(+ 1 2)
+
+;; unevaluated data structure
+(quote (+ 1 2))
+
+;; symbol
++
+
+;; quoted symbol
+(quote +)
+
+;; evaluating an unbound symbol raises an exception
+sweating-to-the-oldies
+
+;; quoting a symbol returns it regardless of whether the symbol has a value associated with it
+(quote sweating-to-the-oldies)
+
+;; ' is a reader macro for (quote x)
+'(+ 1 2)
+
+'dr-jekyll-and-richard-simmons
+
+;; example with when's source code
+(defmacro when2
+  "Evaluates test. If logical true, evals body in an implicit do"
+  {:added "1.0"}
+  [test & body]
+  (list 'if test (cons 'do body)))
+
+(macroexpand '(when (the-cows-come :home)
+                (call me :pappy)
+                (slap me :silly)))
+
+;; example with unless source code
+(defmacro unless2
+  "Inverted if"
+  [test & branches]
+  (conj (reverse branches) test 'if))
+
+(macroexpand '(unless (done-been slapped? me)
+                      (slap me :silly)
+                      (say "I reckon that'll learn me")))
+#+END_SRC
+
+In many cases, we will use simple quoting like that when writing macros, but most often we'll use the more powerful syntax quote
+
+*** Syntax Quoting
+
+Syntax quoting returns unevaluated data structures, similar to normal quoting. However, there are two important differences:
+
+- Syntax quoting will return the fully qualified symbols (that is, with the symbols namespace included)
+- It allows us to unquote forms using the tilde ~
+
+#+BEGIN_SRC clojure
+;; quoting doesn't include a namespace if your code doesn't create a namespace
+'+
+
+;; write out the namespace, and it'll be returned by normal quote
+'clojure.core/+
+
+;; syntax quoting will always include the symbol's full namespace
+`+
+
+;; quoting a list recursively quotes all the elements
+'(+ 1 2)
+
+;; syntax quoting a list recursively quotes all the elements
+`(+ 1 2)
+#+END_SRC
+
+#+BEGIN_SRC clojure
+;; tilde makes the syntax quote disappear
+`(+ 1 ~(inc 1))
+
+;; without the unquote, syntax quoting returns the unevaluated form with fully qualified symbols
+`(+ 1 (inc 1))
+#+END_SRC
+
+** Using Syntax Quoting in a Macro
+
+#+BEGIN_SRC clojure
+;; verbose code critic
+(defmacro code-critic
+  "Phrases are courtesy Hermes Conrad from Futurama"
+  [bad good]
+  (list 'do
+        (list 'println
+              "Great squid of Madrid, this is bad code:"
+              (list 'quote bad))
+        (list 'println
+              "Sweet gorilla of Manila, this is good code:"
+              (list 'quote good))))
+
+(code-critic (1 + 1)
+             (+ 1 1))
+
+;; rewritten with syntax quoting
+(defmacro code-critic
+  [bad good]
+  `(do (println
+        "Great squid of Madrid, this is bad code:"
+        '~bad)
+       (println
+        "Sweet gorilla of Manila, this is good code:"
+        '~good)))
+
+(code-critic (1 + 1)
+             (+ 1 1))
+#+END_SRC
+
+To sum up, macros receive unevaluated, arbitrary data structures as arguments and return data structures that Clojure evaluates.
+
+** Refactoring a Macro and Unquote Splicing
+
+The code critic could still use some improvement
+
+#+BEGIN_SRC clojure
+;; returns a syntax quoted list for building up the list the macro will return
+(defn criticize-code
+  [criticism code]
+  `(println ~criticism '~code))
+
+(defmacro code-critic
+  [bad good]
+  `(do ~(criticize-code "Cursed bacteria of Liberia, this is bad code:" bad)
+       ~(criticize-code "Sweet sacred boa of Western and Eastern Samoa, this is good code:" good)))
+
+(code-critic (1 + 1)
+             (+ 1 1))
+
+;; reduce the multiple function calls that are similar
+(defmacro code-critic
+  [bad good]
+  `(do ~(map #(apply criticize-code %)
+             [["Great squid of Madrid, this is bad code:" bad]
+              ["Sweet gorilla of Manila, this is good code:" good]])))
+
+;; doesn't work
+(code-critic (1 + 1)(+ 1 1))
+#+END_SRC
+
+This doesn't work because println evaluates to nil, so we end up with something like (nil nil).
+Unquote splicing was invented precisely to handle this kind of situation. It is performed with ~@
+
+#+BEGIN_SRC clojure
+;; 'merely' unquote a list
+`(+ ~(list 1 2 3))
+
+;; unquote splicing
+`(+ ~@(list 1 2 3))
+#+END_SRC
+
+Unquote splicing unwraps a seqable data structure, placing its contents directly within the encloding syntax-quoted data structure. 
+
+#+BEGIN_SRC clojure
+;; fix code-critic
+(defmacro code-critic
+  [bad good]
+  `(do ~@(map #(apply criticize-code %)
+              [["Sweet lion of Zion, this is bad code:" bad]
+               ["Great cow of Moscow, this is good code:" good]])))
+
+(code-critic (1 + 1)(+ 1 1))
+#+END_SRC
+
+** Things to Watch Out For
+
+*** Variable Capture
+
+Variable capture occurs when a macro introduces a binding that, unknown the the macro's user, eclipses an existing binding. 
+
+#+BEGIN_SRC clojure
+;; macro introduces its own let binding
+(def message "Good Jerb!")
+
+(defmacro with-mischief
+  [& stuff-to-do]
+  (concat (list 'let ['message "Oh, big deal!"])
+          stuff-to-do))
+
+(with-mischief
+  (println "Here's how I feel about that thing you did: " message))
+
+;; using syntax quoting protects by throwing an exception
+(defmacro with-mischief
+  [& stuff-to-do]
+  `(let [message "Oh, big deal!"]
+     ~@stuff-to-do))
+
+(with-mischief
+  (println "Here's how I feel about that thing you did: " message))
+#+END_SRC
+
+Syntax quoting is designed to prevent us from accidentally capturing variables within macros. If we want to introduce let bindings into our macro, we can use a gensym. The `gensym` function produces unique symbols on each successive call: 
+
+#+BEGIN_SRC clojure
+(gensym)
+
+;; we can also pass a symbol prefix
+(gensym 'message)
+
+;; rewrite with-mischief without mischief
+(defmacro without-mischief
+  [& stuff-to-do]
+  (let [macro-message (gensym 'message)]
+    `(let [~ macro-message "Oh, big deal!"]
+       ~@stuff-to-do
+       (println "I still need to say: " ~ macro-message))))
+
+(without-mischief
+ (println "Here's how I feel about that thing you did: " message))
+
+;; because this is such a common pattern, we can use an auto-gensym
+`(blarg# blarg#)
+
+`(let [name# "Larry Potter" name#])
+#+END_SRC
+
+*** Double Evaluation
+
+Another gotcha to watch out for when writing macros is double evaluation, which occurs when a form passed to a macro as an argument gets evaluated more than once. 
+
+#+BEGIN_SRC clojure
+(defmacro report
+  [to-try]
+  `(if ~to-try
+     (println (quote ~to-try) "was successful:" ~to-try)
+     (println (quote ~to-try) "was not successful:" ~to-try)))
+
+(report (do (Thread/sleep 1000) (+ 1 1)))
+#+END_SRC
+
+In this case, we actually sleep for 2 seconds because (Thread/sleep 1000) gets evaluated twice: once right after if and again when println gets called.
+
+#+BEGIN_SRC clojure
+;; how to avoid
+(defmacro report
+  [to-try]
+  `(let [result# ~to-try]
+     (if result#
+       (println (quote ~to-try) "was successful:" result#)
+       (println (quote ~to-try) "was not successful:" result#))))
+
+(report (do (Thread/sleep 1000) (+ 1 1)))
+#+END_SRC 
+
+By placing to-try in a let expression, you only evaluate that code once and bind the result to an auto-gensym'd symbol, result#, which you can now reference  without reevaluating the code
+
+*** Macros All the Way Down
+
+One subtle pitfall of using macros is that you can end up having to write more and more of them to get anything done. This is a consequence of the fact that macro expansion happens before evaluation.
+
