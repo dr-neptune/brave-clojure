@@ -342,3 +342,152 @@ By placing to-try in a let expression, you only evaluate that code once and bind
 
 One subtle pitfall of using macros is that you can end up having to write more and more of them to get anything done. This is a consequence of the fact that macro expansion happens before evaluation.
 
+Say we wanted to doseq using the report macro. Instead of multiple calls to the report:
+
+#+BEGIN_SRC clojure
+(report (= 1 1))
+
+(report (= 1 2))
+
+;; iterate
+(doseq [code ['(= 1 1)
+              '(= 1 2)]]
+  (report code))
+#+END_SRC
+
+The report macro works fine when we pass the functions individually, but when we use doseq to iterate report over multiple functions, its a failure.
+
+When we see a macro expansion for doseq, we see something like
+
+#+BEGIN_SRC clojure
+(if code
+  (clojure.core/println 'code "was successful:" code)
+  (clojure.core/println 'code "was not successful:" code))
+#+END_SRC
+
+report recieves the unevaluted symbol code in each iteration, but what we really want is for it to receive whatever code is bound to at evaluation time. But report, operating at macro expansion time, just can't access those values.
+
+#+BEGIN_SRC clojure
+;; resolve the situation
+(defmacro doseq-macro
+  [macroname & args]
+  `(do
+     ~@(map (fn [arg]
+              (list macroname arg))
+            args)))
+#+END_SRC
+
+** Brews for the Brave and True
+
+    In this section, we seek to essentially make a system for selling a potion that gives on the power and temperament of an '80s fitness guru.
+
+*** Validation Functions
+
+#+BEGIN_SRC clojure
+(def order-details
+  {:name "Mitchard Blimmons"
+   :email "mitchard.blimmonsgmail.com"})
+
+(def order-details-validations
+  {:name
+   ["Please enter a name" not-empty]
+   :email
+   ["Please enter an email address" not-empty
+    "Your email address doesn't look like an email address"
+    #(or (empty? %)
+         (re-seq #"@" %))]})
+
+(defn error-messages-for
+  "Return a seq of error messages"
+  [to-validate message-validator-pairs]
+  (map first (filter #(not ((second %)
+                            to-validate)) ;; field you want to validate
+                     (partition 2 message-validator-pairs)))) ;; first pair is an error message, second a function
+
+(error-messages-for "" ["Please enter a name" not-empty])
+
+(defn validate
+  "Returns a map with a vector of errors for each key"
+  [to-validate validations]
+  (reduce (fn [errors validation]
+            (let [[fieldname validation-check-groups] validation
+                  value (get to-validate fieldname)
+                  error-messages (error-messages-for value validation-check-groups)]
+              (if (empty? error-messages)
+                errors
+                (assoc errors fieldname error-messages))))
+          {}
+          validations))
+
+(validate order-details order-details-validations)
+#+END_SRC
+
+*** if-valid
+
+With our validation code in place, we can now validate to our hearts' content.
+
+#+BEGIN_SRC clojure
+(let [errors (validate order-details order-details-validations)]
+  (if (empty? errors)
+    (println :success)
+    (println :failure errors)))
+
+;; this wouldn't work because success/failure code would get evaled each time
+(defn if-valid
+  [record validations success-code failure-code]
+  (let [errors (validate record validations)]
+    (if (empty? errors)
+      success-code
+      failure-code)))
+
+(defmacro if-valid
+  "Handle validation more concisely"
+  [to-validate validations errors-name & then-else]
+  `(let [~errors-name (validate ~to-validate ~validations)]
+     (if (empty? ~errors-name)
+       ~@then-else)))
+
+(macroexpand '(if-valid order-details order-details-validations my-error-name
+                        (println :success)
+                        (println :failure my-error-name)))
+#+END_SRC
+
+
+*** Exercises
+
+
+1. Write the macro when-valid so that it behaves similarly to when.
+
+#+BEGIN_SRC clojure
+;; example of use
+(when-valid order-details order-details-validations
+            (println "It's a success!")
+            (render :success))
+
+(defmacro when2
+  "Evaluates test. If logical true, evals body in an implicit do"
+  {:added "1.0"}
+  [test & body]
+  (list 'if test (cons 'do body)))
+
+
+(defmacro when-valid
+
+  )
+
+(if-valid order-details order-details-validations my-error-name (println :success) (println :failure my-error-name))
+
+(when-valid )
+
+#+END_SRC
+
+2. Implement or as a macro
+
+#+BEGIN_SRC clojure
+(defmacro or-2
+  ([] true)
+  ([x] x)
+  ([x & next]
+   `(let [or-2# ~x]
+      (if or-2# (or-2 ~@next) or-2#))))
+#+END_SRC
