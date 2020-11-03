@@ -1,0 +1,207 @@
+
+* Concurrent and Parallel Programming
+
+In this chapter we will look at 3 problems that harry every practicioner:
+
+1. Reference Cells
+2. Mutual Exclusion
+3. Dwarven Berserkers
+
+and 3 tools that help:
+
+1. Futures
+2. Promises
+3. Delays
+
+
+** Concurrency and Parallelism Concepts
+
+   - The Reference cell problem occurs when two threads can read and write to the same location, and the value at the location depends on the order of the reads and writes.
+   - The mutual exclusion problem is when two threads share an end state, but have no way to control each others interleaving, giving a garbled end product.
+   - The Dwarven Berserker Problem (deadlock) is when thread a needs a resource, but that resource is trapped in thread b, and thread b needs a resource, but it is trapped by thread a, and both are stuck.
+
+   When you write serial code, you bind together these 3 events:
+   - task definition
+   - task execution
+   - requiring the task's result
+
+** Futures
+
+   In Clojure, you can use futures to define a task and place it on another thread without requiring the result immediately.
+
+#+BEGIN_SRC clojure
+(future (Thread/sleep 4000)
+        (println "I'll print after 4 seconds"))
+
+(println "I'll print immediately")
+#+END_SRC
+
+You can use futures to run tasks on a separate thread and then forget about them. The future function returns a reference value that you can use to request the result. Requesting a future's result is called dereferencing the future, and we can do it with either the deref function or the @ reader macro. A future's result value is the value of the last expressoin evaluated in its body. A future's body executes only one, and its value gets cached:
+
+#+BEGIN_SRC clojure
+(let [result (future (println "this prints once")
+                     (+ 1 1))]
+  (println "deref: " (deref result))
+  (println "@: " @result))
+#+END_SRC
+
+This shows that our result did indeed get cached.
+
+Dereferencing a future will block if the future hasn't finished running, like so:
+
+#+BEGIN_SRC clojure
+(let [result (future (Thread/sleep 3000)
+                     (+ 1 1))]
+  (println "The result is: " @result)
+  (println "It will be at least 3 seconds before I print"))
+
+;; pass a time limit on how long to wait for a future
+;; this code tells deref to return 5 if the future doesn't return a value in 10 ms
+(deref (future (Thread/sleep 1000) 0) 10 5)
+
+;; see if the future is done running
+(realized? (future (Thread/sleep 1000)))
+
+(let [f (future)]
+  @f
+  (realized? f))
+#+END_SRC
+
+Futures let you chuck tasks onto other threads. They also let you have control over when a task's result is required.
+
+When you deref, you indicate that the result is needed right now and that evaluation should stop until the result is obtained. You could also ignore it, such as using futures to write to log files asynchronously -- in which case, you don't need to dereference the future to get any value back.
+
+** Delays
+
+   Delays allow you to define a task without having to execute it or require the result immediately.
+
+#+BEGIN_SRC clojure
+(def jackson-5-delay
+  (delay (let [message "Just call my name and I'll be there"]
+           (println "First deref:" message)
+           message)))
+#+END_SRC
+
+In this example, nothing is printed because we haven't yet asked the let form to be evaluated.
+
+#+BEGIN_SRC clojure
+;; tell the task to start
+(force jackson-5-delay)
+
+;; delays are also cached
+@jackson-5-delay
+#+END_SRC
+
+One way you can use a delay is to fire off a statement the first time one future out of a group of related futures finishes.
+
+#+BEGIN_SRC clojure
+(def gimli-headshots ["serious.jpg" "fun.jpg" "playful.jpg"])
+
+(defn email-user
+  [email-address]
+  (println "Sending headshot notification to" email-address))
+
+(defn upload-document
+  "needs to be implemented"
+  [headshot]
+  true)
+
+(let [notify (delay (email-user "and-my-axe@gmail.com"))]
+  (doseq [headshot gimli-headshots]
+    (future (upload-document headshot)
+            (force notify))))
+#+END_SRC
+
+** Promises
+
+   Promises allow you to express that you expect a result without having to define the task that should produce it or when that task should run. You create promises using promise and deliver a result to them using deliver. You obtain results by dereferencing
+
+#+BEGIN_SRC clojure
+(def my-promise (promise))
+
+(deliver my-promise (+ 1 2))
+
+@my-promise
+#+END_SRC
+
+Here we create a promise and deliver a value to it. Finally, we obtain results by referencing the promise. Dereferencing is how you express that you expect a result, and if you tried to dereference my-promise without first delivering a value, the program would block until a promise was delivered, just like with futures and delays. You can only deliver a promise once.
+
+One use for promises is to find the first satisfactory element in a collection of data.
+
+#+BEGIN_SRC clojure
+(def yak-butter-international
+  {:store "Yak Butter International"
+   :price 90
+   :smoothness 90})
+
+(def butter-than-nothing
+  {:store "Butter Than Nothing"
+   :price 150
+   :smoothness 83})
+
+(def baby-got-yak
+  {:store "Baby Got Yak"
+   :price 94
+   :smoothness 99})
+
+(defn mock-api-call
+  [result]
+  (Thread/sleep 1000)
+  result)
+
+(defn satisfactory?
+  "If the butter meets our criteria, return it, else false"
+  [butter]
+  (and (<= (:price butter) 100)
+       (>= (:smoothness butter) 97)
+       butter))
+#+END_SRC
+
+Below we use some to apply the satisfactory? function to each element of the collection and return the first truthy result, or nil if there are none.
+
+#+BEGIN_SRC clojure
+;; show how long sequential processing will take
+(time (some (comp satisfactory? mock-api-call)
+            [yak-butter-international
+             butter-than-nothing
+             baby-got-yak]))
+
+;; parallel using promise and futures
+(time
+ ;; create a promise
+ (let [butter-promise (promise)]
+   (doseq [butter [yak-butter-international
+                   butter-than-nothing
+                   baby-got-yak]]
+     ;; create 3 futures with access to that promise
+     (future (if-let [satisfactory-butter (satisfactory? (mock-api-call butter))]
+               ;; if found, deliver future to the promise
+               (deliver butter-promise satisfactory-butter))))
+   ;; deref to wait until the answer is found
+   (println "And the winner is:" @butter-promise)))
+#+END_SRC
+
+By decoupling the requirement for a result from how the result is actually computed, you can perform multiple computations in parallel.
+Because promises can only be written to once, you prevent the kind of inconsistent state that arises from nondeterministic reads and writes.
+
+If none of the butter is satisfactory, the deref will block forever and tie up the thread.
+
+#+BEGIN_SRC clojure
+(let [p (promise)]
+  (deref p 100 "timed out"))
+#+END_SRC
+
+this extra param tells 100 ms, and if no value is available by then, to use the timeout value "timed out".
+
+We can also use promises to register callbacks. JS callbacks are a way of defining code that should execute async once some other code finishes.
+
+#+BEGIN_SRC clojure
+(let [ferengi-wisdom-promise (promise)]
+  (future (println "Here is some Ferengi Wisdom:" @ferengi-wisdom-promise))
+  (Thread/sleep 100)
+  (deliver ferengi-wisdom-promise "Whisper your way to success."))
+#+END_SRC
+
+This example creates a future that begins executing immediately, but the future's thread is blocking because its waiting for a value to be delivered to our promise. After 100 ms, it is delivered and the future runs.
+
+** Rolling Your Own Queue
