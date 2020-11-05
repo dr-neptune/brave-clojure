@@ -205,3 +205,72 @@ We can also use promises to register callbacks. JS callbacks are a way of defini
 This example creates a future that begins executing immediately, but the future's thread is blocking because its waiting for a value to be delivered to our promise. After 100 ms, it is delivered and the future runs.
 
 ** Rolling Your Own Queue
+
+   In this section we will use a macro to combine futures and promises in a more complex manner.
+
+   One characteristic that the 3 concurrency goblins have in common is that they all involve tasks concurrently accessing a shared resource -- a variable, a printer, a dwarven war axe -- in an uncoordinated way. If we want to ensure that only one task will access a resource at a time, we can place the resource access portion of a task on a queue that's executed serially.
+
+#+BEGIN_SRC clojure
+   ;; takes whatever you give it and waits before evaluating the body
+   (defmacro wait
+     "Sleep `timeout` seconds before evaluating body"
+     [timeout & body]
+     `(do (Thread/sleep ~timeout) ~@body))
+
+;; split into a concurrent version and a serialized portion
+   (let [saying3 (promise)]
+     (future (deliver saying3 (wait 100 "Cheerio!")))
+     @(let [saying2 (promise)]
+        (future (deliver saying2 (wait 400 "Pip pip!")))
+        @(let [saying1 (promise)]
+           (future (deliver saying1 (wait 200 "'Ello, gov'na!")))
+           (println @saying1)
+           saying1)
+        (println @saying2)
+        saying2)
+     (println @saying3)
+     saying3)
+#+END_SRC
+
+The overall stategy is to create a promise for each task (in this case, printing part of the greeting) to create a corresponding future that will deliver a concurrently computed value to the promise. This ensures that all of the futures are created before any of the promises are dereferenced, and it ensures that the serialized portions are executed in the correct order.
+
+#+BEGIN_SRC clojure
+;; ideally the macro would work like so
+;; this macro lets you name the promise, define how to derive the promise, and define what to do with it
+(-> (enqueue saying (wait 200 "'Ello, gov'na!") (println @saying))
+    (enqueue saying (wait 400 "Pip pip!") (println @saying))
+    (enqueue saying (wait 100 "Cheerio!") (println @saying)))
+
+(defmacro enqueue
+  ([q concurrent-promise-name concurrent serialized]
+   `(let [~concurrent-promise-name (promise)]
+      (future (deliver ~concurrent-promise-name ~concurrent))
+      (deref ~q)
+      ~serialized
+      ~concurrent-promise-name))
+  ([concurrent-promise-name concurrent serialized]
+   `(enqueue (future) ~concurrent-promise-name ~concurrent ~serialized)))
+
+(time @(-> (enqueue saying (wait 200 "'Ello, gov'na!") (println @saying))
+           (enqueue saying (wait 400 "Pip pip!") (println @saying))
+           (enqueue saying (wait 100 "Cheerio!") (println @saying))))
+
+#+END_SRC
+
+** Exercises
+
+   1. Write a function that takes a string as an argument and searches for it on Bing and Google using the slurp function. The function should return the html of the first page returned by the search
+
+#+BEGIN_SRC clojure
+(slurp "https://www.google.com")
+
+(defn get-search-results
+  [query]
+  [(slurp (str "https://www.google.com/#q=" query))
+   (slurp (str "https://bing.com/search?q=" query))])
+
+(get-search-results "emacs")
+
+;; next up we need to pull the first link
+
+#+END_SRC
