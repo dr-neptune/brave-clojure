@@ -1,0 +1,126 @@
+* Clojure Metaphysics: Atoms, Refs, Vars, and Cuddle Zombies
+
+  In this chapter, we learn about why clojure is safe for concurrent applications. We will also learn about the atom, ref, and var reference types.
+
+** Clojure Metaphysics
+
+ In Clojure, we view objects as a succession of values since the underlying data structures are immutable.
+
+** Atoms
+
+Clojure's atom reference type allows you to endow a succession of related values with an identity.
+
+#+BEGIN_SRC clojure
+(def fred (atom {:cuddle-hunger-level 0
+                 :percent-deteriorated 0}))
+
+;; to get an atom's current state, you dereference it.
+@fred
+
+;; log an objects state with println
+(let [zombie-state @fred]
+  (if (>= (:percent-deteriorated zombie-state) 50)
+    (future (println (:cuddle-hunger-level zombie-state)))))
+#+END_SRC
+
+To update the atom so that it refers to a new state, you use `swap!`. Now we are working with the atom reference type, a construct that refers to atomic values.
+
+swap! recieves an atom and a function as arguments. It applies the function to the atom's current state to produce a new value, and then it updates the atom to refer to this new value.
+
+#+BEGIN_SRC clojure
+;; increase Fred's cuddle hunger by one
+(swap! fred
+       (fn [current-state]
+         (merge-with + current-state {:cuddle-hunger-level 1})))
+
+;; we can update the hunger level and deterioration percentage at the same time since its impossible for fred to be in an inconsistent state
+(swap! fred
+       (fn [current-state]
+         (merge-with + current-state {:cuddle-hunger-level 1
+                                      :percent-deteriorated 1})))
+
+;; pass swap multiple arguments
+(defn increase-cuddle-hunger-level
+  [zombie-state increase-by]
+  (merge-with + zombie-state {:cuddle-hunger-level increase-by}))
+
+;; this does affect not Fred's state
+(increase-cuddle-hunger-level @fred 10)
+
+;; this does affect Fred's state
+(swap! fred increase-cuddle-hunger-level 10)
+
+;; using built in clojure functions
+;; takes a collection, a vector for id'ing which value to update and a fn to update that value
+(update-in {:a {:b 3}}
+           [:a :b]
+           inc)
+
+(update-in {:c {:b 3 :a 2}}
+           [:c :a]
+           + 10)
+
+;; use update-in to change Fred's state
+(swap! fred update-in [:cuddle-hunger-level] + 10)
+
+;; by using atoms, you can retain past state.
+(let [num (atom 1)
+      s1 @num]
+  (swap! num inc)
+  (println "State 1:" s1)
+  (println "Current state:" @num))
+
+;; say we wish to update an atom without checking its current value
+(reset! fred {:cuddle-hunger-level 0
+              :percent-deteriorated 0})
+#+END_SRC
+
+To recap: atoms implement Clojure's concept of state. They allow you to endow a sequence of immutable values with an identity. They offer a solution to the reference cell and mutual exclusion problems through their compare-and-set semantics. They also allow you to work with past states without fear of mutating them in place.
+
+** Watches
+
+A watch is a function that takes four arguments: a key, the reference being watched, its previous state, and its new state
+
+#+BEGIN_SRC clojure
+(defn shuffle-speed
+  [zombie]
+  (* (:cuddle-hunger-level zombie)
+     (- 100 (:percent-deteriorated zombie))))
+
+(shuffle-speed @fred)
+
+;; watch fn to determine if fred is moving at 5000 SPH
+(defn shuffle-alert
+  [key watched old-state new-state]
+  (let [sph (shuffle-speed new-state)]
+    (if (> sph 5000)
+      (do
+        (println "Run, you fool!")
+        (println "The zombie's SPH is now " sph)
+        (println "This message brought to you courtesy of " key))
+      (do
+        (println "All's well with " key)
+        (println "Cuddle hunger: " (:cuddle-hunger-level new-state))
+        (println "Percent deteriorated: " (:percent-deteriorated new-state))
+        (println "SPH: " sph)))))
+
+;; attach our watch to fred
+(reset! fred {:cuddle-hunger-level 22
+              :percent-deteriorated 2})
+
+(add-watch fred :fred-shuffle-alert shuffle-alert)
+
+;; see how watch reacts
+(swap! fred update-in [:percent-deteriorated] + 1)
+
+(swap! fred update-in [:cuddle-hunger-level] + 30)
+#+END_SRC
+
+** Validators
+
+Validators let you specify what states are allowable for a reference.
+
+#+BEGIN_SRC clojure
+;; ensure percent-deteriorated in [0, 100]
+
+#+END_SRC

@@ -262,7 +262,10 @@ The overall stategy is to create a promise for each task (in this case, printing
    1. Write a function that takes a string as an argument and searches for it on Bing and Google using the slurp function. The function should return the html of the first page returned by the search
 
 #+BEGIN_SRC clojure
-(slurp "https://www.google.com")
+(clojure.string/split-lines
+ (slurp "https://www.google.com/#q=emacs"))
+
+
 
 (defn get-search-results
   [query]
@@ -272,5 +275,6 @@ The overall stategy is to create a promise for each task (in this case, printing
 (get-search-results "emacs")
 
 ;; next up we need to pull the first link
-
 #+END_SRC
+
+I'm not sure how to do this at this point. This seems very beyond the scope of the book so far, without access to third party libraries and whatnot
