@@ -367,4 +367,102 @@ with-reders can be used with any var, not just dynamic ones. Since it has such f
 
 ** Stateless Concurrency and Parallelism with pmap
 
-Clojure makes it easy to achieve stateless concurrency.
+Clojure makes it easy to achieve stateless concurrency with pmap.
+
+Now we will compare map with pmap
+
+#+BEGIN_SRC clojure
+;; generate example data
+(defn always-1
+  []
+  1)
+
+;; create a lazy seq of random numbers between 0 and 9
+(take 5 (repeatedly (partial rand-int 10)))
+
+;; generate data that consists of 3000 random strings, each 7000 characters long
+(def alphabet-length 26)
+
+;; vector of characters A-Z
+(def letters (mapv (comp str char (partial + 65)) (range alphabet-length)))
+
+(defn random-string
+  "Returns a random string of specified length"
+  [length]
+  (apply str (take length (repeatedly #(rand-nth letters)))))
+
+(defn random-string-list
+  [list-length string-length]
+  (doall (take list-length (repeatedly (partial random-string string-length)))))
+
+(def orc-names (random-string-list 3000 7000))
+#+END_SRC
+
+Since map and pmap are lazy, we have to force them to be realized. The dorun function realizes the sequence but returns nil
+
+#+BEGIN_SRC clojure
+(time (dorun (map clojure.string/lower-case orc-names)))
+(time (dorun (pmap clojure.string/lower-case orc-names)))
+#+END_SRC
+
+#+BEGIN_SRC clojure
+;; show case where pmap might take longer due to overhead
+(def orc-name-abbrevs (random-string-list 20000 300))
+
+(time (dorun (map clojure.string/lower-case orc-name-abbrevs)))
+(time (dorun (pmap clojure.string/lower-case orc-name-abbrevs)))
+#+END_SRC
+
+The solution to this problem is to increase the grain size, or the amount of work done by each parallelized task. To accomplish this, we can make our function apply to multiple elements instead of just one using partition-all
+
+#+BEGIN_SRC clojure
+(def numbers [1 2 3 4 5 6 7 8 9 10])
+
+(partition-all 3 numbers)
+
+;; grain size 1
+(pmap inc numbers)
+
+;; grain size 3
+(apply concat
+       (pmap (fn [number-group]
+               (doall (map inc number-group)))
+             (partition-all 3 numbers)))
+#+END_SRC
+
+We've increase the grain size to 3 because each thread now executes three applications of the inc function instead of 1. The call to doall within the mapping function forces the lazy sequence returns by (map inc number-group) to be realized within the thread. Then, we ungroup the partitions by applying concat.
+
+#+BEGIN_SRC clojure
+;; make each thread run on 1000 orc names instead of just one
+(time
+ (dorun
+  (apply concat
+         (pmap (fn [name] (doall (map clojure.string/lower-case name)))
+               (partition-all 1000 orc-name-abbrevs)))))
+#+END_SRC
+
+We can generalize this technique into a function called ppmap for partition parallel map
+
+#+BEGIN_SRC clojure
+(defn ppmap
+  "Partitioned pmap, for grouping map ops together to make parallel overhead worthwhile"
+  [grain-size f & colls]
+  (apply concat
+         (apply pmap
+                (fn [& pgroups] (doall (apply map f pgroups)))
+                (map (partial partition-all grain-size) colls))))
+
+(time (dorun (ppmap 1000 clojure.string/lower-case orc-name-abbrevs)))
+#+END_SRC
+
+** Exercises
+
+1. Create an atom with the initial value 0, use swap! to increment it a couple times, then dereference it
+
+#+BEGIN_SRC clojure
+(def init (atom 0))
+
+(swap! init inc)
+
+@init
+#+END_SRC
