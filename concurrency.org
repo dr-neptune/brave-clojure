@@ -1,4 +1,3 @@
-
 * Concurrent and Parallel Programming
 
 In this chapter we will look at 3 problems that harry every practicioner:
@@ -264,8 +263,6 @@ The overall stategy is to create a promise for each task (in this case, printing
 #+BEGIN_SRC clojure
 (clojure.string/split-lines
  (slurp "https://www.google.com/#q=emacs"))
-
-
 
 (defn get-search-results
   [query]
