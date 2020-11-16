@@ -48,3 +48,41 @@ Buffers are just elaborations of the core model: processes are independent, conc
 
 ** Blocking and Parking
 
+Earlier we used the take function with 1 !, >! and the put function with 2 !, >!!. We use 1 ! inside go blocks, and 2 outside of them. 
+
+|      | Inside go block | Outside go block |
+|------+-----------------+------------------|
+| put  | >! or >!!       | >!!              |
+| take | <! or <!!       | <!!              |
+
+Because go blocks use a thread pool with a fixed size, you can create 1000 go processes but only a handful of threads:
+
+#+BEGIN_SRC clojure
+(def hi-chan (chan))
+
+(doseq [n (range 1000)]
+  (go (>! hi-chan (str "Hi " n))))
+#+END_SRC
+
+To understand how clojure accomplishes this we need to explore how processes wait. Waiting is a key aspect of working with core.async processes: we've already established that put waits until another process does a take on the same channel, and vice versa. In this example above, 1000 processes are waiting for another process to take from hi-chan.
+
+There are two varieties of waiting: parking and blocking. Blocking is when a thread stops execution until a task is complete. Usually this happens when we are doing some kind of I/O operation. The thread remains alive but doesn't do any work, so we have to create a new thread (with future) if we want the program to continue working. 
+
+Parking frees up the thread so it can keep doing work. Let's say we have 1 thread and 2 processes, pA and pB. pA is running on the thread and then waits for a put or take. Clojure moves pA off the thread and moves pB onto the thread. If pB starts waiting and pA's put or take has finished, the CLojure will move pB off the thread and put pA back on it. Parking allows the instructions for multiple processes to interleave on a single thread, similar to the way that using multiple threads allows interleaving on a single core. Parking is only possible within go blocks, and its only possible when we use >! or <!, or parking put and parking take (not >!!, <!! which are blocking put and blocking take).
+
+** Thread 
+
+There are times when we will want blocking rather than parking (like when the process will take a long time before putting or taking), and for these occasions we can use thread: 
+
+#+BEGIN_SRC clojure
+(thread (println (<!! echo-chan)))
+(>!! echo-chan "mustard")
+#+END_SRC
+
+thread acts almost exactly like future: it creates a new thread and executes a process on that thread. Unlike future, instead of returning an object that you can dereference, thread returns a channel. When thread's process stops, the process's return value is put on a channel that thread returns
+
+#+BEGIN_SRC clojure
+(let [t (thread "Chili")]
+  (<!! t))
+#+END_SRC
+
