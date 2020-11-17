@@ -86,3 +86,76 @@ thread acts almost exactly like future: it creates a new thread and executes a p
   (<!! t))
 #+END_SRC
 
+In this case, the process doesn't wait for any events; instead it stops immediately. The reason you should use thread instead of a go block when you're performing a long running task is so that you don't clog your thread pool. 
+
+go, thread, chan, <! <!!, >!, and >!! are the core tools we will use for communicating with processes. Both put and take will cause a process to wait until its complement is performed on the given channel. go allows you to use the parking variants of put and take, which could improve performance. You should use blocking variants, along with thread, if you're performing long-running tasks before the put or take. 
+
+
+* The Hot Dog Machine Process
+
+#+BEGIN_SRC clojure
+(defn hot-dog-machine
+  []
+  (let [in (chan)
+        out (chan)]
+    (go (<! in)
+        (>! out "hot dog"))
+    [in out]))
+#+END_SRC
+
+This function creates an in channel for receiving money and an out channel for dispensing a hot dog. It then creates an async process with go, which waits for money and then dispenses a hot dog. Finally, it returns the in and out channels as a vector.
+
+#+BEGIN_SRC clojure
+(let [[in out] (hot-dog-machine)]
+  (>!! in "pocket lint")
+  (<!! out))
+#+END_SRC
+
+In this example, we use destructuring with let to bind the in and out channels to the in and out symbols. We then pass the in channel "pocket lint". The hot dog machine waits for anything to arrive on the in channel, and once pocket lint arrives, the hot dog machine resumes execution, putting "hot dog" on the out channel. 
+
+#+BEGIN_SRC clojure
+;; alter the machine to specify how many hot dogs it has
+;; also change what it accepts in order to dispense said hot dogs
+(defn hot-dog-machine-v2
+  [hot-dog-count]
+  (let [in (chan)
+        out (chan)]
+    (go (loop [hc hot-dog-count]
+          (if (> hc 0)
+            (let [input (<! in)]
+              (if (= 3 input)
+                (do (>! out "hot dog")
+                    (recur (dec hc)))
+                (do (>! out "wilted lettuce")
+                    (recur hc))))
+            (do (close! in)
+                (close! out)))))
+    [in out]))
+#+END_SRC
+
+#+BEGIN_SRC clojure
+(let [[in out] (hot-dog-machine-v2 2)]
+  (>!! in "pocket lint")
+  (println (<!! out))
+  (>!! in 3)
+  (println (<!! out))
+  (>!! in 3)
+  (println (<!! out))
+  (>!! in 3)
+  (<!! out))
+#+END_SRC
+
+We may notice that our hot dog machine v2 does a put and a take in the same go block. This is one way we can create a pipeline of processes: just make the in channel of one process the out channel of another.
+
+#+BEGIN_SRC clojure
+(let [c1 (chan)
+      c2 (chan)
+      c3 (chan)]
+  (go (>! c2 (clojure.string/upper-case (<! c1))))
+  (go (>! c3 (clojure.string/reverse (<! c2))))
+  (go (println (<! c3)))
+  (>!! c1 "redrum"))
+#+END_SRC
+
+There will be more on process pipelines and how we can use them instead of callbacks towards the end of the chapter.
+
