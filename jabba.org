@@ -1,0 +1,87 @@
+* Working with the JVM
+
+#+BEGIN_SRC java :classname PiratePhrases :dir phrasebook
+public class PiratePhrases
+{
+    public static void main(String[] args)
+    {
+	System.out.println("Shiver me timbers!");
+    }
+}
+#+END_SRC
+
+#+RESULTS:
+: Shiver me timbers!
+
+* Packages and Imports
+
+#+BEGIN_SRC java :classname Greetings :dir phrasebook/pirate_phrases
+package pirate_phrases;
+
+public class Greetings
+{
+    public static void hello()
+    {
+	System.out.println("Shiver me timbers!!");
+    }
+}
+#+END_SRC
+
+#+BEGIN_SRC java :classname Farewells :dir phrasebook/pirate_phrases
+package pirate_phrases;
+
+public class Farewells
+{
+    public static void goodbye()
+    {
+	System.out.println("A fair turn of the tide ter ye thar, ye magnificent sea friend!!");
+    }
+}
+#+END_SRC
+
+#+BEGIN_SRC java :classname PirateConversation :dir phrasebook :results raw
+import pirate_phrases.*;
+
+public class PirateConversation
+{
+    public static void main(String[] args)
+    {
+	Greetings greetings = new Greetings();
+	greetings.hello();
+
+	Farewells farewells = new Farewells();
+	farewells.goodbye();
+    }
+}
+#+END_SRC
+
+#+RESULTS:
+Shiver me timbers!!
+A fair turn of the tide ter ye thar, ye magnificent sea friend!!
+
+* Jar Files
+
+JAR files allow you to bundle all your .class files into one single file.
+
+#+BEGIN_SRC shell :dir phrasebook :results raw
+jar cvfe conversation.jar PirateConversation PirateConversation.class pirate_phrases/*.class
+#+END_SRC
+
+#+RESULTS:
+added manifest
+adding: PirateConversation.class(in = 431) (out= 307)(deflated 28%)
+adding: pirate_phrases/Farewells.class(in = 469) (out= 333)(deflated 28%)
+adding: pirate_phrases/Greetings.class(in = 422) (out= 298)(deflated 29%)
+
+#+BEGIN_SRC shell :dir phrasebook :results raw
+java -jar conversation.jar
+#+END_SRC
+
+#+RESULTS:
+Shiver me timbers!!
+A fair turn of the tide ter ye thar, ye magnificent sea friend!!
+
+* clojure.jar
+
+
+
