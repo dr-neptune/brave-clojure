@@ -159,3 +159,103 @@ We may notice that our hot dog machine v2 does a put and a take in the same go b
 
 There will be more on process pipelines and how we can use them instead of callbacks towards the end of the chapter.
 
+* alts!!
+
+The function alts!! lets you use the result of the first successful channel operation among a collection of operations. We did something similar to this with delays and futures in a previous chapter. Here is how we would do it with alts!!
+
+#+BEGIN_SRC clojure
+(defn upload
+  [headshot c]
+  (go (Thread/sleep (rand 100))
+      (>! c headshot)))
+
+(let [c1 (chan)
+      c2 (chan)
+      c3 (chan)]
+  (upload "serious.jpg" c1)
+  (upload "fun.jpg" c2)
+  (upload "sassy.jpg" c3)
+  (let [[headshot channel] (alts!! [c1 c2 c3])] ;; as soon as a take succeeds, return a vector with value and channel
+    (println "Sending headshot notification for" headshot)))
+
+;; you can give alts a timeout channel. This is a mechanism for putting a time limit on concurrent operations
+(let [c1 (chan)]
+  (upload "serious.jpg" c1)
+  (let [[headshot channel] (alts!! [c1 (timeout 20)])]
+    (if headshot
+      (println "Sending headshot notification for" headshot)
+      (println "Timed out!"))))
+
+;; we can also use alts!! to specify put operations
+(let [c1 (chan)
+      c2 (chan)]
+  (go (<! c2)) ;; try to do a take on c2
+  (let [[value channel] (alts!! [c1 [c2 "put!"]])] ;; try to do a take on c1 and a put on c2. return whichever finishes first (c2 since its waiting for a put)
+    (println value)
+    (= channel c2)))
+#+END_SRC
+
+Like <!! and >!!, alts!! has a parking alternative alts! for use inside go blocks. 
+
+* Queues
+
+Suppose you want to get a bunch of random quotes from a website and write them to a single file. You want to make sure that only one quote is written to a file at a time so the text doesn't get interleaved, so you put your quotes on a queue. 
+  
+#+BEGIN_SRC clojure
+(defn append-to-file
+  "Write a string to the end of a file"
+  [filename s]
+  (spit filename s :append true))
+
+(defn format-quote
+  "Delineate the beginning and end of a quote because it's convenient"
+  [quote]
+  (str "=== BEGIN QUOTE===\n" quote "=== END QUOTE===\n\n"))
+
+(defn random-quote
+  "retrieve a random quote"
+  []
+  (format-quote
+   (slurp "https://www.braveclojure.com/random-quote")))
+
+(defn snag-quotes
+  [filename num-quotes]
+  (let [c (chan)]
+    (go (while true (append-to-file filename (<! c))))
+    (dotimes [n num-quotes] (go (>! c (random-quote))))))
+
+(snag-quotes "quotes" 2)
+#+END_SRC
+
+* Escape Callback Hell with Process Pipelines
+
+In languages without channels, we need to express the idea "when x happens, do y" with callbacks. In a language like js, callbacks are a way to define code that executes async once other code finishes. The reason it's called callback hell is that it is very easy to create dependencies among layers of callbacks that aren't immediately obvious. They end up sharing state, making it difficult to reason about the state of the overall system as the callbacks get triggered. We can avoid this by creating a process pipeline, which makes each unit of logic live in its own isolated process, and all communication between units of logic occur through explicitly defined input and output channels. 
+
+In this example, we create 3 infinitely looping processes connected through channels, passing the out channel of one process as the in channel as the next in the pipeline:
+
+#+BEGIN_SRC clojure
+(defn upper-caser
+  [in]
+  (let [out (chan)]
+    (go (while true (>! out (clojure.string/upper-case (<! in)))))
+    out))
+
+(defn reverser
+  [in]
+  (let [out (chan)]
+    (go (while true (>! out (clojure.string/reverse (<! in)))))
+    out))
+
+(defn printer
+  [in]
+  (go (while true (println (<! in)))))
+
+(def in-chan (chan))
+(def upper-caser-out (upper-caser in-chan))
+(def reverser-out (reverser upper-caser-out))
+(printer reverser-out)
+
+(>!! in-chan "redrum")
+(>!! in-chan "repaid")
+#+END_SRC  
+
