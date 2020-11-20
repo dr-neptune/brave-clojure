@@ -1,0 +1,76 @@
+* Creating and Extending Abstractions with Multimethods, Protocols, and Records
+
+In Clojure, an abstraction is a collection of operations, and data types implement abstractions. For example, the seq abstraction consists of operations like first and rest, and the vector data type is an implementation of that abstraction; to responds to all of the seq operations. 
+
+* Polymorphism
+
+** Multimethods
+
+   Multimethods give you a direct, flexible way to introduce polymorphism to your code.
+
+#+BEGIN_SRC clojure
+(ns were-creatures)
+
+(defmulti full-moon-behavior (fn [were-creature] (:were-type were-creature)))
+
+(defmethod full-moon-behavior :wolf
+  [were-creature]
+  (str (:name were-creature) " will howl and murder"))
+
+(defmethod full-moon-behavior :simmons
+  [were-creature]
+  (str (:name were-creature) " will encourage people and sweat to the oldies"))
+
+;; define a method with nil as the dispatch value
+(defmethod full-moon-behavior nil
+  [were-creature]
+  (str (:name were-creature) " will stay at home and eat ice cream"))
+
+;; define a default method
+(defmethod full-moon-behavior :default
+  [were-creature]
+  (str (:name were-creature) " will stay up all night fantasy footballing"))
+
+(full-moon-behavior {:were-type :wolf
+                     :name "Rachel from next door"})
+
+(full-moon-behavior {:were-type :simmons
+                     :name "Andy the Baker"})
+
+(full-moon-behavior {:were-type nil
+                     :name "Martin the Nurse"})
+
+(full-moon-behavior {:were-type :office-worker
+                     :name "Jimbo from Sales"})
+#+END_SRC
+
+One cool thing about multimethods is that you can always add new methods. If you publish a library that includes the namespace, other people can continue extending the multimethod to handle new dispatch values.
+
+#+BEGIN_SRC clojure
+(ns random-namespace
+  (:require [were-creatures]))
+
+(defmethod were-creatures/full-moon-behavior :bill-murray
+  [were-creature]
+  (str (:name were-creature) " will be a likeable celebrity"))
+
+(were-creatures/full-moon-behavior {:name "Laura the Intern"
+                                    :were-type :bill-murray})
+#+END_SRC
+
+Your dispatching function can return arbitrary values using any or all of its arguments.
+
+#+BEGIN_SRC clojure
+;; take two args and return a vector containing the type of each argument
+(ns user)
+
+(defmulti types (fn [x y] [(class x) (class y)]))
+
+(defmethod types [java.lang.String java.lang.String]
+  [x y]
+  "Two strings!")
+
+(types "String 1" "String 2")
+#+END_SRC
+
+** Protocols

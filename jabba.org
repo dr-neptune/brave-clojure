@@ -83,5 +83,161 @@ A fair turn of the tide ter ye thar, ye magnificent sea friend!!
 
 * clojure.jar
 
+The link here is dead. The section itself has good output.
 
+* Clojure App JARs
+
+You set the namespace of the entry point for your program in the project.clj file using the :main attribute. 
+
+So if you define a -main function in a namespace and include the (:gen-class) directive, and also set :main in your project.clj file, your program will have everything it needs for Java to run it when it gets compiled as a JAR.
+
+* Java Interop
+
+** Interop Syntax
+
+#+BEGIN_SRC clojure
+(.toUpperCase "By Bluebeard's bananas!")
+(.indexOf "Let's synergize our bleeding edge's" "y")
+#+END_SRC
+
+These are equivalent to
+
+#+BEGIN_SRC java
+"By Bluebeard's bananas!".toUpperCase()
+"Let's synergize our bleeding edge's".indexOf("y")
+#+END_SRC
+
+You can also use static methods on classes and access classes' static fields
+
+#+BEGIN_SRC clojure
+(java.lang.Math/abs -3)
+java.lang.Math/PI
+#+END_SRC
+
+All of these examples (except pi) use macros that expand to use the dot special form.
+
+#+BEGIN_SRC clojure
+(macroexpand-1 '(.toUpperCase "By Bluebeard's bananas!"))
+(macroexpand-1 '(.indexOf "Let's synergize our bleeding edge's" "y"))
+(macroexpand-1 '(Math/abs -3))
+
+;; the general form of the dot operator is (. object-expr-or-classname-symbol method-or-member optional-args*)
+#+END_SRC
+
+** Creating and Mutating Objects
+
+This section shows how to create new objects and how to interact with them
+
+#+BEGIN_SRC clojure
+;; different ways to create new objects (new ClassName optional-args) or (ClassName. optional-args)
+(new String)
+(String.)
+(String. "To Davey Jone's Locker with ye hardies")
+#+END_SRC
+
+Unlike the Clojure data structure, Java stacks are mutable.
+
+#+BEGIN_SRC clojure
+(java.util.Stack.)
+
+(let [stack (java.util.Stack.)]
+  (.push stack "LOTR: The Fellowship")
+  stack)
+#+END_SRC
+
+It prints like a vector, but it is not a vector. However, we can use Clojure's seq functions for reading a ds, like first, on the stack
+
+#+BEGIN_SRC clojure
+(let [stack (java.util.Stack.)]
+  (.push stack "LOTR: The Fellowship")
+  (first stack))
+#+END_SRC
+
+You can't use functions like conj and into to add elements to the stack. It's possible to read the stack using Clojure functions because clojure extends it's abstractions to java.util.Stack.
+
+#+BEGIN_SRC clojure
+;; doto macro allows executing multiple methods on the same object more succinctly
+(doto (java.util.Stack.)
+  (.push "LOTR: The Fellowship")
+  (.push "LOTR: The Two Towers")
+  (.push "LOTR: The Return of the King"))
+
+(macroexpand-1 '(doto (java.util.Stack.)
+                  (.push "LOTR: The Fellowship")
+                  (.push "LOTR: The Two Towers")
+                  (.push "LOTR: The Return of the King")))
+#+END_SRC
+
+** Importing
+
+In Clojure, importing has the same effect as it does in Java: you can use classes without having to type out their entire package prefix:
+
+#+BEGIN_SRC clojure
+(import java.util.Stack)
+(Stack.)
+
+;; import multiple classes
+(import [java.util Date Stack]
+        [java.net Proxy URI])
+
+(Date.)
+
+;; usually we will do all our importing in the ns macro like this
+(ns pirate.talk
+  (:import [java.util Date Stack]
+           [java.net Proxy URI]))
+#+END_SRC
+
+* Commonly Used Java Classes
+
+** The System Class
+
+The System class has useful class fields and methods for interacting with the environment that your program is running in. You can use it to get environment variables and interact with the std.in and std.out, and error output streams.
+
+#+BEGIN_SRC clojure
+(System/getenv)
+
+(System/getProperty "user.dir")
+(System/getProperty "java.version")
+#+END_SRC
+
+** The Date Class
+
+#+BEGIN_SRC clojure
+;; clojure allows us to represent dates as literals like this
+#inst "2020-11-19T21:07:00"
+#+END_SRC
+
+** Files and I/O
+
+Clojure makes reading and writing easier for you because it includes functions that unify reading and writing across different kinds of resources.
+
+#+BEGIN_SRC clojure
+;; spit writes to a resource
+(spit "/tmp/hercules-todo-list"
+      "- kill dat lion brov
+       - chop up what nasty multi-headed snake thing")
+
+;; slurp reads from one
+(slurp "/tmp/hercules-todo-list")
+
+;; perform IO on a string
+;; write
+(let [s (java.io.StringWriter.)]
+  (spit s "-capture cerynian hind like it for real")
+  (.toString s))
+
+;; read
+(let [s (java.io.StringReader. "- get erymanthain pig what with the tusks")]
+  (slurp s))
+#+END_SRC
+
+- The with-open macro is another convenience: it implicitly closes a resource at the end of its body, ensuring that you don't accidentally tie up resources by forgetting to manually close the resource.
+- The reader function attempts to coerce its argument to an open java.io.Reader. This is convenient when you don't want to use slurp because you don't want to try to read a resource in its entirety and you don't want to figure out which Java class you need to use.
+
+#+BEGIN_SRC clojure
+;; print the first item of the Hercules todo list
+(with-open [todo-list-rdr (clojure.java.io/reader "/tmp/hercules-todo-list")]
+  (println (first (line-seq todo-list-rdr))))
+#+END_SRC
 
