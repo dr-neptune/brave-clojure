@@ -74,3 +74,120 @@ Your dispatching function can return arbitrary values using any or all of its ar
 #+END_SRC
 
 ** Protocols
+
+Most of the time we wish to dispatch to methods according to an argument's type. Although we can perform type dispatch with multimethods, *protocols* are optimized for type dispatch.
+
+A protocol is a collection of one or more polymorphic operations. They are dispatched based on the type of the first argument, as shown below:
+
+#+BEGIN_SRC clojure
+(ns data-psychology)
+(defprotocol Psychodynamics
+  "Plumb the inner depths of your data types"
+  (thoughts [x] "The data type's innermost thoughts")
+  (feelings-about [x] [x y] "Feelings about self or other"))
+#+END_SRC
+
+The body of the protocol above consists of method signatures containing a name, an argument specification, and an optional doc string. Unfortunately, the methods can not have rest arguments.
+
+By defining a protocol, we are defining an abstraction, but not an implementation. We can use the abstraction above to extend a data type, making an implementation:
+
+#+BEGIN_SRC clojure
+(extend-type java.lang.String
+  Psychodynamics
+  (thoughts [x] (str x " thinks, 'Truly, the character defines the data type'"))
+  (feelings-about
+    ([x] (str x " is longing for a simpler way of life"))
+    ([x y] (str x " is envious of " y "'s simpler way of life"))))
+
+(thoughts "blorb")
+(feelings-about "schmorb")
+(feelings-about "schmorb" 2)
+#+END_SRC
+
+We can also provide a default implementation, as with multimethods. We do this by extending java.lang.Object.
+
+#+BEGIN_SRC clojure
+(extend-type java.lang.Object
+  Psychodynamics
+  (thoughts [x] "Maybe the internet is just a vector for toxoplasmosis")
+  (feelings-about
+    ([x] "meh")
+    ([x y] (str "meh about " y))))
+
+(thoughts 3)
+(feelings-about 3)
+(feelings-about 3 "blorb")
+#+END_SRC
+
+Instead of making multiple calls to extend-type to extend multiple types, we can use extend-protocol which lets us define protocol implementations for multiple types at once
+
+#+BEGIN_SRC clojure
+(extend-protocol Psychodynamics
+  java.lang.String
+  (thoughts [x] "Truly, the character defines the data type")
+  (feelings-about
+    ([x] "longing for a simpler way of life")
+    ([x y] (str "envious of " y "'s simpler way of life")))
+  java.lang.Object
+  (thoughts [x] "Maybe the internet is just a vector for toxoplasmosis")
+  (feelings-about
+    ([x] "meh")
+    ([x y] "meh about " y)))
+
+(feelings-about "Blorp" 3)
+#+END_SRC
+
+* Records
+
+Clojure allows you to create records, which are custom, map-like data types. They're different in that you specify fields for records. Fields are like slots for data; using them is like specifying which keys a data structure should have.
+
+#+BEGIN_SRC clojure
+(ns were-records)
+(defrecord WereWolf [name title])
+
+;; create an instance
+(WereWolf. "David" "London Tourist")
+(->WereWolf "Jacob" "Lead Shirt Discarder")
+(map->WereWolf {:name "Lucian"
+                :title "CEO of Melodrama"})
+#+END_SRC
+
+You can look up record values in the same way you look up map values, and you can also use Java field access interop:
+
+#+BEGIN_SRC clojure
+(def jacob (->WereWolf "Jacob" "Lead Shirt Discarder"))
+(.name jacob)
+(:name jacob)
+(get jacob :name)
+#+END_SRC
+
+When testing for equality, Clojure will check that all fields are equal and that the two comparands have the same type:
+
+#+BEGIN_SRC clojure
+(= jacob (->WereWolf "Jacob" "Lead Shirt Discarder"))
+(= jacob (WereWolf. "David" "London Tourist"))
+(= jacob {:name "Jacob"
+          :title "Lead Shirt Discarder"}) ;; this returns false because jacob is a WereWolf record, and the other is a map
+#+END_SRC
+
+Any function you can use on a map, you can also use on a record
+
+#+BEGIN_SRC clojure
+(assoc jacob :title "Lead Third Wheel")
+(dissoc jacob :title) ;; returns a map, not a record
+#+END_SRC
+
+Here is how we could extend a protocol when defining a record: 
+#+BEGIN_SRC clojure
+(defprotocol WereCreature
+  (full-moon-behavior [x]))
+
+(defrecord WereWolf [name title]
+  WereCreature
+  (full-moon-behavior [x]
+    (str name " will howl and murder")))
+
+(full-moon-behavior (map->WereWolf {:name "Lucian" :title "CEO of Melodrama"}))
+#+END_SRC
+
+In general, you should consider using records if you find yourself creating maps with the same fields over and over. 
